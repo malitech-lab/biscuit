@@ -139,6 +139,35 @@ Diese Fehler wurden durch Integrationstests gegen echte Geräte, echte Werkzeuge
 und echte Server sichtbar. Jeder hätte in Produktion zu einem unbrauchbaren
 Medium oder einem hängenden Vorgang geführt.
 
+- **Das erste Release lief nur auf der Maschine, die es gebaut hat.**
+  v0.1.0-rc.1 war signiert, hatte eine gültige SHA-256 und eine gültige
+  Ed25519-Signatur — und stürzte auf jedem anderen Mac beim Start ab.
+  Zurückgezogen.
+
+  SwiftPM erzeugt je Build-System einen anderen Zugriffscode für
+  `Bundle.module`. Der des **nativen** Systems prüft genau zwei Pfade: das
+  Wurzelverzeichnis des `.app` und den **absoluten Pfad des
+  Build-Verzeichnisses**, als Zeichenkette einkompiliert. Im veröffentlichten
+  Archiv stand entsprechend
+  `/Users/runner/work/biscuit/biscuit/.build/…/Biscuit_BiscuitKit.bundle`.
+  Ins Wurzelverzeichnis darf das Ressourcen-Bundle nicht, weil das die
+  Code-Signatur bricht (`unsealed contents present in the bundle root`,
+  gemessen). Lokal galt das Xcode-Build-System, in der CI das native — daher
+  grün hier und kaputt dort.
+
+  **Schlimmer als der Fehler war mein erster Versuch, ihn zu beheben.** Die CI
+  meldete „Zeichenkettentabelle für 'en' fehlt im Bundle" — ein zutreffender
+  Befund. Ich habe die Prüfung nachsichtig gemacht, sodass sie beide Layouts
+  akzeptierte, und damit die Meldung zum Schweigen gebracht statt die Ursache
+  behoben. Die CI wurde grün, das Release kaputt.
+
+  Drei Gegenmaßnahmen, und nur die erste ist verlässlich:
+  `bundle.sh` wählt das Build-System jetzt ausdrücklich; es prüft, ob im Binary
+  ein `.build`-Pfad steht (maschinenunabhängig — eine Startprobe auf der
+  Baumaschine kann diesen Fehler *nicht* finden, weil der Pfad dort existiert);
+  und es startet das gebaute Programm zusätzlich einmal. Gegengeprüft: die
+  Prüfung erkennt den nativ gebauten Build und das zurückgezogene Archiv.
+
 - **Der Katalog wäre in jedem gepackten Build tot gewesen.**
   `Scripts/bundle.sh` schreibt alle `Biscuit*`-Schlüssel in die `Info.plist` und
   lässt die nicht gesetzten als **leeren String** stehen. Der Schlüssel

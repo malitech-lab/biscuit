@@ -106,10 +106,34 @@ select_sdk
 # ---------------------------------------------------------------------------
 
 log "Baue Biscuit $VERSION ($BUILD_NUMBER), Konfiguration: $CONFIGURATION"
-swift build -c "$CONFIGURATION" --product Biscuit
-swift build -c "$CONFIGURATION" --product biscuit-helper
+# Das Build-System wird ausdrücklich gewählt, nicht der Toolchain überlassen.
+#
+# SwiftPM erzeugt je Build-System einen anderen Zugriffscode für
+# `Bundle.module`. Der des nativen Systems kompiliert den absoluten Pfad des
+# Build-Verzeichnisses ein und sucht sonst nur im Wurzelverzeichnis des .app —
+# wohin das Ressourcen-Bundle nicht darf, weil es die Signatur bricht. Ergebnis:
+# ein Bundle, das auf der Baumaschine läuft und sonst nirgends. Genau so ist
+# v0.1.0-rc.1 entstanden, weil lokal und in der CI unterschiedliche Vorgaben
+# galten.
+#
+# Fehlt die Option in der Toolchain, wird ohne sie gebaut; die
+# Eigenständigkeitsprüfung weiter unten bricht dann ab, statt ein kaputtes
+# Bundle auszuliefern.
+BUILD_SYSTEM_ARGS=""
+if swift build --help 2>&1 | grep -q -- "--build-system"; then
+  BUILD_SYSTEM_ARGS="--build-system swiftbuild"
+  log "Build-System: swiftbuild (ausdrücklich gewählt)"
+else
+  warn "Diese Toolchain kennt --build-system nicht; baue mit der Vorgabe."
+fi
 
-BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
+# shellcheck disable=SC2086  # BUILD_SYSTEM_ARGS ist bewusst wortgetrennt.
+swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --product Biscuit
+# shellcheck disable=SC2086
+swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --product biscuit-helper
+
+# shellcheck disable=SC2086
+BIN_DIR="$(swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --show-bin-path)"
 [ -x "$BIN_DIR/Biscuit" ] || die "Biscuit nicht gefunden in $BIN_DIR"
 [ -x "$BIN_DIR/biscuit-helper" ] || die "biscuit-helper nicht gefunden in $BIN_DIR"
 
@@ -146,25 +170,28 @@ done
 
 # Verify both languages actually made it in.
 #
-# Two layouts have to be accepted. SwiftPM now has two build systems, and they
-# package resource bundles differently: the Xcode-based one produces a proper
-# macOS bundle with `Contents/Resources/en.lproj`, while the native one puts
-# `en.lproj` straight at the top level. Which one runs depends on the toolchain,
-# so hardcoding either makes the script work on one machine and fail on the
-# next — it passed locally and failed in CI for exactly this reason.
+# The claim I got wrong once, written down so it is not repeated: `Bundle.module`
+# does **not** cope with any layout. SwiftPM generates a different accessor per
+# build system, and the two look in different places.
 #
-# `Bundle.module` copes with both, so this is a packaging detail rather than a
-# runtime one; the check simply has to look in both places.
+#   Xcode build system  → Bundle.main.resourceURL  (= Contents/Resources), and
+#                          Bundle.main.bundleURL as a later fallback
+#   native build system → Bundle.main.bundleURL only (= the .app itself)
+#
+# Only `Contents/Resources` is usable, because a bundle sitting in the root of a
+# .app breaks the code signature: `codesign --verify` then reports "unsealed
+# contents present in the bundle root". Measured, not assumed.
+#
+# So the layout is not a choice. If the binary was built by the native build
+# system it will look in the wrong place, and the launch check below is what
+# catches that — a file existing at a path this script guessed proves nothing.
 RES_BUNDLE="$APP/Contents/Resources/Biscuit_BiscuitKit.bundle"
 for language in en de; do
-  strings_file=""
-  for candidate in \
-    "$RES_BUNDLE/Contents/Resources/$language.lproj/Localizable.strings" \
-    "$RES_BUNDLE/$language.lproj/Localizable.strings"
-  do
-    if [ -f "$candidate" ]; then strings_file="$candidate"; break; fi
-  done
-  [ -n "$strings_file" ] || die "Zeichenkettentabelle für '$language' fehlt im Bundle"
+  strings_file="$RES_BUNDLE/Contents/Resources/$language.lproj/Localizable.strings"
+  if [ ! -f "$strings_file" ]; then
+    strings_file="$RES_BUNDLE/$language.lproj/Localizable.strings"
+  fi
+  [ -f "$strings_file" ] || die "Zeichenkettentabelle für '$language' fehlt im Bundle"
   plutil -lint "$strings_file" >/dev/null || die "Zeichenkettentabelle für '$language' ist ungültig"
 done
 log "Sprachen im Bundle: en, de"
@@ -254,6 +281,74 @@ find "$APP" -perm -o+w -print0 | while IFS= read -r -d '' entry; do
   warn "Entferne Schreibrecht für andere: $entry"
   chmod o-w "$entry"
 done
+
+# Ist das Bundle eigenständig?
+#
+# Diese Prüfung ist die eigentliche Lehre aus v0.1.0-rc.1. Das Release war
+# signiert, hatte eine gültige Prüfsumme — und stürzte auf jeder *anderen*
+# Maschine beim Start ab.
+#
+# Ursache: SwiftPM erzeugt je Build-System einen anderen Zugriffscode für
+# `Bundle.module`. Der des nativen Systems prüft genau zwei Pfade — das
+# Wurzelverzeichnis des .app und den **absoluten Pfad des Build-Verzeichnisses**,
+# einkompiliert als Zeichenkette. Auf der Baumaschine existiert dieser Pfad, also
+# funktioniert dort alles: der Start, jede Rauchprobe, jede Prüfung. Auf einem
+# fremden Rechner zeigt er ins Leere und die App stirbt sofort.
+#
+# Ins Wurzelverzeichnis des .app darf das Ressourcen-Bundle nicht, weil das die
+# Code-Signatur bricht ("unsealed contents present in the bundle root").
+# Deshalb wird hier nicht gestartet, sondern nachgesehen, ob das Binary
+# überhaupt einen Build-Pfad braucht. Das Ergebnis hängt nicht davon ab, auf
+# welcher Maschine geprüft wird — anders als bei jeder Startprobe.
+if strings "$APP/Contents/MacOS/Biscuit" 2>/dev/null \
+   | grep -q "\.build/.*Biscuit_BiscuitKit\.bundle"; then
+  die "Das Binary sucht sein Ressourcen-Bundle im Build-Verzeichnis.
+  Das .app ist damit nicht eigenständig: hier läuft es, auf einem fremden Mac
+  stürzt es beim Start ab. Gebaut wurde offenbar mit dem nativen
+  SwiftPM-Build-System. Abhilfe: mit dem Xcode-Build-System bauen,
+  z. B. SWIFTPM_BUILD_SYSTEM=swiftbuild oder
+  swift build --build-system swiftbuild."
+fi
+log "Bundle ist eigenständig: kein Build-Pfad im Binary"
+
+# Startprobe. Zusätzlich, nicht stattdessen.
+#
+# Ein v0.1.0-rc.1 wurde veröffentlicht, signiert, mit gültiger Prüfsumme — und
+# stürzte beim Start ab, weil das Ressourcen-Bundle dort lag, wo dieses Skript
+# es erwartete, und nicht dort, wo das gebaute Binary danach sucht. Jede
+# bisherige Prüfung hier sah nach, ob Dateien an geratenen Pfaden liegen. Keine
+# hat das Programm gestartet.
+#
+# Gestartet wird ohne Fenster-Interaktion: die App legt ihre Umgebung an, lädt
+# Lokalisierung und Katalogzustand und bleibt dann am Leben. Stürzt sie vorher,
+# bricht das Paket ab.
+log "Startprobe"
+SMOKE_LOG="$(mktemp -t biscuit-smoke)"
+"$APP/Contents/MacOS/Biscuit" -AppleLanguages "(en)" >"$SMOKE_LOG" 2>&1 &
+SMOKE_PID=$!
+SMOKE_OK="no"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  sleep 1
+  if ! kill -0 "$SMOKE_PID" 2>/dev/null; then break; fi
+done
+if kill -0 "$SMOKE_PID" 2>/dev/null; then
+  SMOKE_OK="yes"
+  kill "$SMOKE_PID" 2>/dev/null || true
+  wait "$SMOKE_PID" 2>/dev/null || true
+fi
+if [ "$SMOKE_OK" != "yes" ]; then
+  warn "Die App hat sich beim Start beendet. Ausgabe:"
+  sed 's/^/    /' "$SMOKE_LOG" >&2
+  rm -f "$SMOKE_LOG"
+  die "Startprobe fehlgeschlagen — das Bundle ist nicht lauffähig.
+  Häufigste Ursache: das Binary wurde mit dem nativen SwiftPM-Build-System
+  gebaut, dessen Bundle.module ausschließlich im Wurzelverzeichnis des .app
+  sucht. Dort darf das Ressourcen-Bundle nicht liegen, weil es die
+  Code-Signatur bricht. Abhilfe: mit dem Xcode-Build-System bauen
+  (swift build --build-system swiftbuild)."
+fi
+rm -f "$SMOKE_LOG"
+log "Startprobe bestanden"
 
 log "Fertig: $APP"
 log "Version $VERSION ($BUILD_NUMBER)"
