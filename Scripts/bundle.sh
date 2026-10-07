@@ -126,11 +126,16 @@ log "Baue Biscuit $VERSION ($BUILD_NUMBER), Konfiguration: $CONFIGURATION"
 # ab. Deshalb werden die Kandidaten durchprobiert.
 #
 # 'native' steht bewusst nicht in der Liste: dessen Bundle.module kompiliert den
-# absoluten Build-Pfad ein, und genau daran ist v0.1.0-rc.1 gescheitert. Wird
-# keiner der anderen angenommen, wird ohne Option gebaut und die
-# Eigenständigkeitsprüfung weiter unten entscheidet.
+# absoluten Build-Pfad ein, und genau daran ist v0.1.0-rc.1 gescheitert.
+#
+# Die Reihenfolge ist gemessen, nicht geraten. 'next' wird von der Toolchain des
+# CI-Runners angenommen, erzeugt aber denselben Zugriffscode wie 'native' — die
+# Eigenständigkeitsprüfung weiter unten hat genau das aufgedeckt, bevor daraus
+# ein Release wurde. Deshalb steht 'xcode' davor.
+#
+# Wird keiner angenommen, wird ohne Option gebaut; die Prüfung entscheidet.
 BUILD_SYSTEM_ARGS=""
-for candidate in swiftbuild next xcode; do
+for candidate in swiftbuild xcode next; do
   if swift build --build-system "$candidate" -c "$CONFIGURATION" \
        --show-bin-path >/dev/null 2>&1; then
     BUILD_SYSTEM_ARGS="--build-system $candidate"
