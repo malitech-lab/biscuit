@@ -4,25 +4,33 @@ import Foundation
 /// Static facts about this build, read from the bundle so the packaging script
 /// is the single source of truth for the version number.
 enum AppInfo {
+    /// Reads a string from `Info.plist`, treating blank as absent.
+    ///
+    /// The reason blank must not count as present is documented on
+    /// `BundleConfiguration.nonBlank`, which also carries the tests.
+    private static func plistString(_ key: String) -> String? {
+        BundleConfiguration.nonBlank(Bundle.main.infoDictionary?[key])
+    }
+
     static let bundleIdentifier = Bundle.main.bundleIdentifier ?? "dev.biscuit.Biscuit"
 
     static let version: String =
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0-dev"
+        plistString("CFBundleShortVersionString") ?? "0.0.0-dev"
 
     static let build: String =
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        plistString("CFBundleVersion") ?? "0"
 
     static let name = "Biscuit"
 
     /// GitHub repository used for update checks. Overridable via Info.plist so a
     /// fork does not need a code change.
     static let repository: String =
-        Bundle.main.infoDictionary?["BiscuitUpdateRepository"] as? String ?? "malitech-lab/biscuit"
+        plistString("BiscuitUpdateRepository") ?? "malitech-lab/biscuit"
 
     /// Base64 Ed25519 public key that release archives must be signed with.
     /// Empty means update verification is impossible and updates are disabled.
     static let updatePublicKey: String =
-        Bundle.main.infoDictionary?["BiscuitUpdatePublicKey"] as? String ?? ""
+        plistString("BiscuitUpdatePublicKey") ?? ""
 
     /// Where the signed image catalogue lives.
     ///
@@ -30,11 +38,10 @@ enum AppInfo {
     /// without a code change — and so a development build can be aimed at a
     /// local file server.
     static var catalogueBaseURL: URL {
-        let configured = Bundle.main.infoDictionary?["BiscuitCatalogueURL"] as? String
-        let fallback = "https://\(repository.split(separator: "/").first.map(String.init) ?? "biscuit")"
-            + ".github.io/\(repository.split(separator: "/").last.map(String.init) ?? "biscuit")/"
-        return URL(string: configured ?? fallback)
-            ?? URL(string: "https://example.invalid/")!
+        BundleConfiguration.catalogueBaseURL(
+            configured: plistString("BiscuitCatalogueURL"),
+            repository: repository
+        ) ?? URL(string: "https://example.invalid/")!
     }
 
     static var catalogueURL: URL {

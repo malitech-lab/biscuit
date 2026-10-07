@@ -139,6 +139,25 @@ Diese Fehler wurden durch Integrationstests gegen echte Geräte, echte Werkzeuge
 und echte Server sichtbar. Jeder hätte in Produktion zu einem unbrauchbaren
 Medium oder einem hängenden Vorgang geführt.
 
+- **Der Katalog wäre in jedem gepackten Build tot gewesen.**
+  `Scripts/bundle.sh` schreibt alle `Biscuit*`-Schlüssel in die `Info.plist` und
+  lässt die nicht gesetzten als **leeren String** stehen. Der Schlüssel
+  existiert damit, `as? String` liefert `""` statt `nil`, und ein
+  `?? fallback` greift nie.
+
+  `catalogueBaseURL` las `BiscuitCatalogueURL`, fand `""`, baute
+  `URL(string: "")` — was `nil` ist — und fiel auf `https://example.invalid/`
+  zurück. Der Zweig, der die echte GitHub-Pages-Adresse ableitet, war
+  unerreichbar. Nachgemessen mit der Logik und dem Wert aus dem gebauten
+  Bundle, nicht erschlossen.
+
+  Die Lesefunktion behandelt leer und Weißraum jetzt als fehlend, und die
+  Logik liegt als `BundleConfiguration` in BiscuitKit, wo sie geprüft werden
+  kann — `AppInfo` steckt in einem Executable-Target, das das Testziel nicht
+  importieren kann. Elf Tests, darunter einer, der die abgeleitete Adresse
+  gegen die tatsächlich eingerichtete Pages-Adresse festnagelt, und einer, der
+  verhindert, dass ein `Biscuit*`-Schlüssel wieder direkt gelesen wird.
+
 - **`JobExecutor`s beide Vorbedingungen hatten keinen einzigen Test.**
   `assertAnswerFileApplies` und `assertSourceMatchesStrategy` waren private
   Statics in einem Executable-Target, das das Testziel nicht importieren kann —

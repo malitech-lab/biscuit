@@ -375,7 +375,7 @@ Ergebnis an das GitHub-Release. Für den Tap wird die Datei als
 
 ## Tests
 
-333 Tests in 56 Suites, überwiegend Integrationstests statt Mocks:
+344 Tests in 58 Suites, überwiegend Integrationstests statt Mocks:
 
 | Bereich | Wie getestet |
 |---|---|
