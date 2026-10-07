@@ -144,7 +144,7 @@ struct WIMToolPathTests {
                 sandbox.binary.path, helperExecutable: helperSibling(of: sandbox)
             )
         }
-        #expect(error.diagnostics?.contains("writable by group or others") == true)
+        #expect(error.diagnostics?.contains("world-writable") == true)
     }
 
     @Test("Ein weltschreibbares Verzeichnis wird abgelehnt")
@@ -159,19 +159,58 @@ struct WIMToolPathTests {
                 sandbox.binary.path, helperExecutable: helperSibling(of: sandbox)
             )
         }
-        #expect(error.diagnostics?.contains("writable by group or others") == true)
+        #expect(error.diagnostics?.contains("world-writable") == true)
     }
 
-    @Test("Eine gruppenschreibbare Datei wird abgelehnt")
-    func rejectsGroupWritableFile() throws {
+    @Test("Gruppenschreibbar wird nach Gruppe beurteilt, nicht pauschal")
+    func groupWritableIsJudgedByGroup() throws {
+        // Die erste Fassung lehnte gruppenschreibbar pauschal ab. Das war
+        // zugleich falsch und wirkungslos: Homebrew legt /opt/homebrew/bin als
+        // `admin` mit Modus 775 an, also fiel jede reale Maschine darauf
+        // herein — und die fest verdrahtete Ersatzliste führte denselben Pfad
+        // danach ungeprüft aus. Mitglieder von `admin` und `wheel` erreichen
+        // root ohnehin per sudo; eine andere Gruppe ist eine echte Ausweitung.
         let sandbox = try makeSandbox(fileMode: 0o775)
         defer { sandbox.remove() }
 
-        #expect(throws: BiscuitError.self) {
+        let gid = (try? FileManager.default.attributesOfItem(atPath: sandbox.binary.path))
+            .flatMap { ($0[.groupOwnerAccountID] as? NSNumber)?.uint32Value } ?? .max
+        if WIMTool.isPrivilegedGroup(gid) {
             try WIMTool.validateToolPath(
                 sandbox.binary.path, helperExecutable: helperSibling(of: sandbox)
             )
+        } else {
+            let error = try #require(throws: BiscuitError.self) {
+                try WIMTool.validateToolPath(
+                    sandbox.binary.path, helperExecutable: helperSibling(of: sandbox)
+                )
+            }
+            #expect(error.diagnostics?.contains("group-writable") == true)
         }
+    }
+
+    @Test("admin und wheel gelten als bereits privilegiert")
+    func privilegedGroupsRecognised() {
+        // Namensbasiert, nicht nach fester GID: die Zahlen unterscheiden sich
+        // zwischen Systemen.
+        var adminFound = false
+        var wheelFound = false
+        for gid in UInt32(0)...UInt32(200) {
+            guard let name = WIMTool.groupName(gid) else { continue }
+            if name == "admin" { adminFound = true; #expect(WIMTool.isPrivilegedGroup(gid)) }
+            if name == "wheel" { wheelFound = true; #expect(WIMTool.isPrivilegedGroup(gid)) }
+        }
+        #expect(adminFound && wheelFound, "admin/wheel auf diesem System nicht gefunden")
+    }
+
+    @Test("Das echte Homebrew-Verzeichnis wird nicht mehr abgelehnt")
+    func realHomebrewIsAccepted() throws {
+        // Genau der Fall aus dem Protokoll eines echten Laufs:
+        // „rejected tool path /opt/homebrew/bin: writable by group or others
+        // (mode 775)" — gefolgt davon, dass derselbe Pfad doch benutzt wurde.
+        let path = "/opt/homebrew/bin/\(WIMTool.expectedToolName)"
+        guard FileManager.default.isExecutableFile(atPath: path) else { return }
+        try WIMTool.validateToolPath(path, helperExecutable: nil)
     }
 
     @Test("Ein nicht vorhandener Pfad wird abgelehnt")

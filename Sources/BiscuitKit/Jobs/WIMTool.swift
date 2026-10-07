@@ -240,8 +240,19 @@ public extension WIMTool {
             )
         }
 
-        // A group- or world-writable binary — or directory — means someone
-        // other than its owner can decide what root executes.
+        // World-writable is always fatal: anyone at all could swap the file.
+        //
+        // Group-writable is judged by *which* group. The first version rejected
+        // it outright and was both wrong and useless: Homebrew on Apple Silicon
+        // installs `/opt/homebrew/bin` as `admin`, mode 775, so every real
+        // machine tripped it — and the hardcoded fallback list then ran the
+        // very same path without any check at all. The warning was noise and
+        // the rule bought nothing.
+        //
+        // Members of `admin` and `wheel` can already become root with `sudo`.
+        // Write access to a directory they could escalate through anyway is not
+        // an additional step up, and SECURITY.md records it as an accepted
+        // limit. Any other group is a genuine widening and stays fatal.
         for candidate in [standardised, (standardised as NSString).deletingLastPathComponent] {
             guard let attributes = try? FileManager.default
                 .attributesOfItem(atPath: candidate),
@@ -250,13 +261,36 @@ public extension WIMTool {
                 throw toolPathRejected(candidate, reason: "cannot stat")
             }
             let mode = permissions.uint16Value
-            guard mode & 0o022 == 0 else {
+            guard mode & 0o002 == 0 else {
                 throw toolPathRejected(
                     candidate,
-                    reason: String(format: "writable by group or others (mode %o)", mode)
+                    reason: String(format: "world-writable (mode %o)", mode)
                 )
             }
+            if mode & 0o020 != 0 {
+                let gid = (attributes[.groupOwnerAccountID] as? NSNumber)?.uint32Value ?? .max
+                guard Self.isPrivilegedGroup(gid) else {
+                    let name = Self.groupName(gid) ?? "gid \(gid)"
+                    throw toolPathRejected(
+                        candidate,
+                        reason: String(format: "group-writable by '%@' (mode %o)", name, mode)
+                    )
+                }
+            }
         }
+    }
+
+    /// Groups whose members can already reach root through `sudo`.
+    static func isPrivilegedGroup(_ gid: UInt32) -> Bool {
+        guard let name = groupName(gid) else { return false }
+        return name == "admin" || name == "wheel"
+    }
+
+    static func groupName(_ gid: UInt32) -> String? {
+        guard let entry = getgrgid(gid_t(gid)), let raw = entry.pointee.gr_name else {
+            return nil
+        }
+        return String(cString: raw)
     }
 
     private static func toolPathRejected(_ path: String, reason: String) -> BiscuitError {
@@ -306,7 +340,20 @@ public extension WIMTool {
             "/opt/local/bin/\(expectedToolName)"
         ])
 
-        guard let path = ProcessRunner.locate(candidates) else { return nil }
-        return WIMTool(executablePath: path)
+        // Die Ersatzkandidaten durchlaufen dieselbe Prüfung. Vorher taten sie
+        // es nicht, und der Pfad, den die Prüfung gerade abgelehnt hatte, wurde
+        // eine Zeile später aus dieser Liste doch benutzt.
+        for candidate in candidates {
+            guard FileManager.default.isExecutableFile(atPath: candidate) else { continue }
+            do {
+                try validateToolPath(candidate, helperExecutable: helperExecutable)
+                return WIMTool(executablePath: candidate)
+            } catch let error as BiscuitError {
+                onRejection?(error)
+            } catch {
+                onRejection?(BiscuitError.wrap(error, kind: .wimToolMissing))
+            }
+        }
+        return nil
     }
 }
