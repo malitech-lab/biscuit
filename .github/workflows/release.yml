@@ -41,7 +41,7 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Abhängigkeiten
-        run: brew install openssl@3 wimlib
+        run: brew install openssl@3 wimlib xz
 
       - name: Update-Schlüssel prüfen
         env:

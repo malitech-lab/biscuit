@@ -38,6 +38,7 @@ public final class FrameChannel: @unchecked Sendable {
     private let closeLock = NSLock()
 
     public init(fileDescriptor: Int32) {
+        SignalSetup.ignoreBrokenPipe()
         self.fd = fileDescriptor
         // Never let a broken pipe raise SIGPIPE; we want EPIPE from write(2).
         var on: Int32 = 1

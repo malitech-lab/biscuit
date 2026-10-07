@@ -379,3 +379,119 @@ struct BiscuitErrorTests {
         #expect(error.message.contains("open"))
     }
 }
+
+/// Broken pipes must not kill the process.
+///
+/// The helper has always set `SIGPIPE` to `SIG_IGN`, for a good reason: a peer
+/// that disappears must not terminate a process that is part-way through
+/// writing a disk. The app and the test process never did, and
+/// `FrameChannel`'s `SO_NOSIGPIPE` covers only sockets — not the pipes
+/// `ProcessRunner` uses for child processes, where that option does not apply.
+///
+/// Tested by effect rather than by comparing signal handlers: what matters is
+/// that a write to a dead pipe returns `EPIPE` instead of ending the process.
+/// If the disposition were wrong, these tests would not fail — they would take
+/// the whole test run down, which is itself unmistakable.
+@Suite("SIGPIPE")
+struct SignalSetupTests {
+    /// Writes one byte to a pipe whose read end is closed.
+    private func writeToClosedPipe() -> (result: Int, error: Int32) {
+        var fds: [Int32] = [-1, -1]
+        guard pipe(&fds) == 0 else { return (0, 0) }
+        close(fds[0])
+        let payload = Array("x".utf8)
+        let written = payload.withUnsafeBufferPointer { buffer in
+            write(fds[1], buffer.baseAddress, buffer.count)
+        }
+        let saved = errno
+        close(fds[1])
+        return (written, saved)
+    }
+
+    @Test("Schreiben in eine geschlossene Pipe liefert EPIPE statt den Prozess zu beenden")
+    func writeToClosedPipeReturnsError() {
+        SignalSetup.ignoreBrokenPipe()
+        let outcome = writeToClosedPipe()
+        #expect(outcome.result == -1, "Schreiben hätte fehlschlagen müssen")
+        #expect(outcome.error == EPIPE, "erwartet EPIPE, erhalten errno \(outcome.error)")
+    }
+
+    @Test("Mehrfaches Einrichten ist unschädlich")
+    func idempotent() {
+        SignalSetup.ignoreBrokenPipe()
+        SignalSetup.ignoreBrokenPipe()
+        SignalSetup.ignoreBrokenPipe()
+        #expect(writeToClosedPipe().error == EPIPE)
+    }
+
+    /// Die Aufrufstellen werden am Quelltext geprüft, nicht durch Umschalten
+    /// der Disposition.
+    ///
+    /// Der erste Entwurf dieser Tests setzte `SIGPIPE` auf `SIG_DFL` zurück, um
+    /// zu sehen, ob `ProcessRunner` sie wieder einrichtet. Unter `--parallel`
+    /// schrieb in diesem Fenster ein *anderer*, nebenläufiger Test in eine
+    /// gebrochene Pipe — und riss den gesamten Testlauf mit:
+    /// `exited with unexpected signal code 13`. Genau die Meldung, die den
+    /// Release-Workflow hat scheitern lassen.
+    ///
+    /// Die Disposition ist prozessweit. Ein Test, der sie umschaltet,
+    /// sabotiert jeden gleichzeitig laufenden Test — dieselbe Fehlerklasse wie
+    /// die `umask` im Socket-Aufbau, die früher in dieser Entwicklung
+    /// nebenstehende Verzeichnisse unbeschreibbar machte.
+    @Test("ProcessRunner und FrameChannel richten die Behandlung ein")
+    func callSitesSetItUp() throws {
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var root: URL?
+        for _ in 0..<5 {
+            if FileManager.default.fileExists(
+                atPath: directory.appendingPathComponent("Sources").path
+            ) { root = directory; break }
+            directory = directory.deletingLastPathComponent()
+        }
+        let sources = try #require(root, "Sources nicht gefunden")
+
+        for relative in [
+            "Sources/BiscuitKit/Util/ProcessRunner.swift",
+            "Sources/BiscuitKit/IPC/FrameChannel.swift"
+        ] {
+            let data = try #require(
+                try? Data(contentsOf: sources.appendingPathComponent(relative)),
+                Comment(rawValue: "\(relative) nicht lesbar")
+            )
+            let text = String(decoding: data, as: UTF8.self)
+            #expect(
+                text.contains("SignalSetup.ignoreBrokenPipe()"),
+                Comment(rawValue: "\(relative) richtet SIGPIPE nicht ein")
+            )
+        }
+    }
+
+    @Test("Kein Test schaltet SIGPIPE prozessweit um")
+    func noTestResetsTheDisposition() throws {
+        // Die Regel, die dieser Suite selbst auf die Füße gefallen ist.
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var offenders: [String] = []
+        guard let walker = FileManager.default.enumerator(
+            at: directory, includingPropertiesForKeys: nil
+        ) else { return }
+        for case let url as URL in walker where url.pathExtension == "swift" {
+            let text = String(decoding: (try? Data(contentsOf: url)) ?? Data(), as: UTF8.self)
+            for (number, line) in text.split(separator: "\n").enumerated() {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("///") else { continue }
+                // Zusammengesetzt, damit diese Zeile sich nicht selbst findet.
+                let needle = "signal(" + "SIGPIPE"
+                if trimmed.contains(needle) {
+                    offenders.append("\(url.lastPathComponent):\(number + 1)")
+                }
+            }
+        }
+        #expect(
+            offenders.isEmpty,
+            """
+            Tests schalten SIGPIPE um: \(offenders.joined(separator: ", ")). \
+            Die Disposition ist prozessweit; das reißt nebenläufige Tests mit.
+            """
+        )
+    }
+}

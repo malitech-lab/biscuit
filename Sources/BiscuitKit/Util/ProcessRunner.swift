@@ -41,6 +41,8 @@ public enum ProcessRunner {
         standardInput: Data? = nil,
         timeout: TimeInterval? = nil
     ) async throws -> Result {
+        // Ein Kind, das früh endet, darf uns nicht per SIGPIPE mitnehmen.
+        SignalSetup.ignoreBrokenPipe()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments

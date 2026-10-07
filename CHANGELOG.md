@@ -139,6 +139,31 @@ Diese Fehler wurden durch Integrationstests gegen echte Geräte, echte Werkzeuge
 und echte Server sichtbar. Jeder hätte in Produktion zu einem unbrauchbaren
 Medium oder einem hängenden Vorgang geführt.
 
+- **Ein gebrochenes Rohr konnte den ganzen Prozess beenden.** Der Helfer setzt
+  `SIGPIPE` seit immer auf `SIG_IGN`, mit der richtigen Begründung: eine
+  verschwundene Gegenseite darf keinen Prozess beenden, der mitten im
+  Beschreiben eines Datenträgers steckt. Die App und der Testprozess taten es
+  nicht, und `FrameChannel`s `SO_NOSIGPIPE` deckt nur Sockets — nicht die
+  Pipes, über die `ProcessRunner` mit Kindprozessen spricht, wo diese Option
+  nicht gilt.
+
+  Aufgefallen ist das, weil der Release-Workflow zweimal mit
+  `exited with unexpected signal code 13` abbrach, während mehrere
+  prozessstartende Tests gleichzeitig liefen. Die genaue Schreiboperation habe
+  ich **nicht** identifiziert; dies ist daher ausdrücklich nicht als bewiesene
+  Behebung dieses Vorfalls dargestellt. Es entfernt eine Fehlermöglichkeit, die
+  in einem Prozess, der auf fremdgesteuerte Pipes und Sockets schreibt, ohnehin
+  nicht bestehen sollte.
+
+  Beim Testen dieser Änderung habe ich den Fehler dann lokal reproduziert — und
+  zwar selbst verursacht: meine ersten Testfassungen setzten `SIGPIPE`
+  prozessweit zurück, um zu prüfen, ob `ProcessRunner` es wieder einrichtet.
+  Unter `--parallel` schrieb in diesem Fenster ein nebenläufiger Test in eine
+  gebrochene Pipe und riss den Lauf mit. Dieselbe Fehlerklasse wie die `umask`
+  im Socket-Aufbau: **prozessweiter Zustand, der aus einem Test heraus
+  umgeschaltet wird.** Die Aufrufstellen werden jetzt am Quelltext geprüft, und
+  ein Test verbietet, dass irgendein Test die Disposition umschaltet.
+
 - **Das erste Release lief nur auf der Maschine, die es gebaut hat.**
   v0.1.0-rc.1 war signiert, hatte eine gültige SHA-256 und eine gültige
   Ed25519-Signatur — und stürzte auf jedem anderen Mac beim Start ab.
