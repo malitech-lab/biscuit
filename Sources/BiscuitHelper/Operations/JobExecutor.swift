@@ -54,13 +54,18 @@ struct JobExecutor: JobRunning {
                 expectedSizeBytes: request.expectedTargetSizeBytes,
                 context: context
             )
-            // Vor dem ersten zerstörenden Schritt und vor dem Aushängen: ein
-            // `open` auf den Geräteknoten. Der erste echte Lauf scheiterte erst
-            // in `wipeSignatures` — da waren alle Volumes schon ausgehängt, und
-            // der Nutzer stand mit einem unmontierten Stick und einem errno da.
-            // Die Probe kostet einen Systemaufruf und hält den Fehlschlag
-            // vollständig harmlos.
-            try disk.assertDeviceWritable(device: device, context: context)
+            // Bewusst keine Schreibprobe an dieser Stelle.
+            //
+            // Ein früherer Versuch tat genau das, um den Fehlschlag vor dem
+            // Aushängen abzufangen. Das kann nicht funktionieren: `/dev/rdiskN`
+            // lässt sich nicht schreibend öffnen, solange Volumes gemountet
+            // sind — die Probe lieferte zuverlässig `EBUSY` und brach jeden
+            // Auftrag ab, bevor überhaupt etwas versucht wurde. Eine Prüfung,
+            // die im Normalfall nicht bestehen kann, ist keine Absicherung.
+            //
+            // Die Reihenfolge ist also: aushängen, dann öffnen. Dass dabei ein
+            // Fehlschlag den Datenträger ausgehängt zurücklässt, wird unten im
+            // Fehlerpfad behoben, indem wieder eingehängt wird.
             context.report(phase: .preparing, phaseFraction: 1)
 
             var bytesWritten: UInt64 = 0
@@ -170,6 +175,10 @@ struct JobExecutor: JobRunning {
 
         } catch {
             let typed = BiscuitError.wrap(error)
+            // Nach einem Fehlschlag wieder einhängen. Ein Datenträger, der
+            // unverändert ist, soll auch so aussehen — und nicht aus dem Finder
+            // verschwunden bleiben.
+            await disk.remountAfterFailure(request.targetBSDName, context: context)
             if typed.isCancellation {
                 context.log(
                     .warning,

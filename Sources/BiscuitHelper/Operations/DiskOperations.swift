@@ -77,24 +77,31 @@ struct DiskOperations: Sendable {
         context.log(.info, "all volumes unmounted")
     }
 
-    // MARK: - Partition table hygiene
-
-    /// Checks write access to the device node *before* anything destructive.
+    /// Hängt die Volumes wieder ein, nachdem ein Auftrag fehlgeschlagen ist.
     ///
-    /// The first real run failed at `wipeSignatures`, which is the first
-    /// destructive step — but by then every volume on the stick had already
-    /// been unmounted. Nothing was lost, yet the user was left with an
-    /// unmounted disk and an errno. Probing first costs one `open` and keeps
-    /// the failure entirely harmless.
-    func assertDeviceWritable(device: StorageDevice, context: JobContext) throws {
-        let fd = open(device.rawDevicePath, O_WRONLY)
-        if fd >= 0 {
-            close(fd)
-            context.log(.debug, "device node writable: \(device.rawDevicePath)")
-            return
+    /// Der erste Lauf gegen echte Hardware brach nach dem Aushängen ab und
+    /// hinterließ einen Datenträger, der im Finder verschwunden war, obwohl
+    /// nichts an ihm verändert worden war. Das sah nach Schaden aus, wo keiner
+    /// entstanden war.
+    ///
+    /// Bewusst ohne Fehlerbehandlung nach außen: dies läuft im Fehlerpfad, und
+    /// ein fehlgeschlagenes Wiedereinhängen darf die eigentliche Meldung nicht
+    /// verdrängen. Es wird protokolliert und gut.
+    func remountAfterFailure(_ bsdName: String, context: JobContext) async {
+        let result = try? await ProcessRunner.run(
+            DeviceInspector.diskutil,
+            arguments: ["mountDisk", "/dev/\(bsdName)"],
+            environment: WIMTool.sanitisedEnvironment(),
+            timeout: 60
+        )
+        if result?.succeeded == true {
+            context.log(.info, "remounted \(bsdName) after failure")
+        } else {
+            context.log(.debug, "could not remount \(bsdName): \(result?.combinedOutput ?? "no result")")
         }
-        throw DeviceAccessDiagnosis.error(errno: errno, path: device.rawDevicePath)
     }
+
+    // MARK: - Partition table hygiene
 
     /// Overwrites the first and last megabyte of the device.
     ///

@@ -45,11 +45,15 @@ struct DeviceAccessDiagnosisTests {
         #expect(eacces.message == t(.errorDeviceAccessDenied))
     }
 
-    @Test("EBUSY nennt andere Programme als Ursache")
-    func ebusyNamesOtherPrograms() {
+    @Test("EBUSY nennt den belegten Datenträger, nicht ein fehlgeschlagenes Aushängen")
+    func ebusyHasItsOwnMessage() {
+        // Die erste Fassung griff auf `errorDeviceBusy` zurück, dessen Text vom
+        // *Aushängen* spricht. Der Nutzer las dann „konnte nicht ausgehängt
+        // werden", während das Aushängen gar nicht versucht worden war.
         let error = DeviceAccessDiagnosis.error(errno: EBUSY, path: "/dev/rdisk7")
-        #expect(error.message == t(.errorDeviceBusy))
-        #expect(error.remedy == t(.errorDeviceBusyRemedy))
+        #expect(error.message == t(.errorDeviceNodeBusy))
+        #expect(error.message != t(.errorDeviceBusy), "wieder die Aushänge-Meldung")
+        #expect(error.remedy == t(.errorDeviceNodeBusyRemedy))
     }
 
     @Test("Die Diagnose nennt Pfad, errno und Klartext")
@@ -107,9 +111,20 @@ struct DeviceAccessDiagnosisTests {
     }
 }
 
-/// The preflight that keeps the failure harmless.
-@Suite("Vorabprüfung des Geräteknotens")
-struct DevicePreflightCallSiteTests {
+/// Die Reihenfolge der zerstörenden Schritte.
+///
+/// Dieser Test stand hier schon einmal — und hat das Falsche festgeschrieben.
+/// Er verlangte, dass eine Schreibprobe *vor* dem Aushängen läuft, weil der
+/// erste Lauf gegen echte Hardware erst später scheiterte. Dieselbe Annahme
+/// steckte im Code, und beide waren falsch: `/dev/rdiskN` lässt sich nicht
+/// schreibend öffnen, solange Volumes gemountet sind. Der nächste echte Lauf
+/// brach deshalb mit `EBUSY` ab, bevor überhaupt etwas versucht wurde — ein
+/// Test, der einen Fehler zementiert, ist schlimmer als keiner.
+///
+/// Die richtige Reihenfolge ist: aushängen, dann öffnen. Und wenn dabei etwas
+/// schiefgeht, wieder einhängen.
+@Suite("Reihenfolge beim Löschen")
+struct DestructiveOrderTests {
     private static func source(_ relative: String) -> String? {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<5 {
@@ -122,19 +137,50 @@ struct DevicePreflightCallSiteTests {
         return nil
     }
 
-    @Test("Die Probe läuft vor dem Aushängen und vor jeder Methode")
-    func preflightRunsFirst() throws {
-        // The first real run failed only at wipeSignatures, by which time every
-        // volume had been unmounted. Nothing was lost, but the user was left
-        // with an unmounted stick for no reason.
+    @Test("Es gibt keine Schreibprobe vor dem Aushängen")
+    func noWriteProbeBeforeUnmount() throws {
+        // Eine Probe an dieser Stelle kann im Normalfall nicht bestehen.
         let executor = try #require(
             Self.source("Sources/BiscuitHelper/Operations/JobExecutor.swift"),
             "JobExecutor nicht gefunden"
         )
-        let probe = try #require(executor.range(of: "assertDeviceWritable"))
-        let unmount = try #require(executor.range(of: "disk.unmountDisk("))
-        let dispatch = try #require(executor.range(of: "switch request.strategy"))
-        #expect(probe.lowerBound < unmount.lowerBound, "Probe läuft nach dem Aushängen")
-        #expect(probe.lowerBound < dispatch.lowerBound, "Probe deckt nicht alle Methoden ab")
+        #expect(
+            !executor.contains("assertDeviceWritable"),
+            "Schreibprobe vor dem Aushängen ist zurück — sie liefert EBUSY"
+        )
+    }
+
+    @Test("Aushängen steht vor dem Überschreiben der Signaturen")
+    func unmountPrecedesWipe() throws {
+        for relative in [
+            "Sources/BiscuitHelper/Operations/JobExecutor.swift",
+            "Sources/BiscuitHelper/Operations/WindowsMediaBuilder.swift"
+        ] {
+            let text = try #require(
+                Self.source(relative), Comment(rawValue: "\(relative) nicht gefunden")
+            )
+            guard let wipe = text.range(of: "wipeSignatures(") else { continue }
+            let unmount = try #require(
+                text.range(of: "unmountDisk("),
+                Comment(rawValue: "\(relative): kein Aushängen vor dem Überschreiben")
+            )
+            #expect(
+                unmount.lowerBound < wipe.lowerBound,
+                Comment(rawValue: "\(relative): Reihenfolge verdreht")
+            )
+        }
+    }
+
+    @Test("Nach einem Fehlschlag wird wieder eingehängt")
+    func remountsAfterFailure() throws {
+        // Ein unveränderter Datenträger soll nicht aus dem Finder verschwunden
+        // bleiben: das sieht nach Schaden aus, wo keiner entstanden ist.
+        let executor = try #require(
+            Self.source("Sources/BiscuitHelper/Operations/JobExecutor.swift")
+        )
+        #expect(executor.contains("remountAfterFailure("))
+        let catchRange = try #require(executor.range(of: "} catch {"))
+        let remount = try #require(executor.range(of: "remountAfterFailure("))
+        #expect(catchRange.lowerBound < remount.lowerBound, "Wiedereinhängen nicht im Fehlerpfad")
     }
 }

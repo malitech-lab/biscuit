@@ -160,11 +160,25 @@ unter dem alten Namen, die migriert werden müsste.
   dass auf dem Datenträger nichts verändert wurde; ein Knopf öffnet den Bereich
   direkt.
 
-- **Der Fehlschlag kam zu spät.** Er trat erst in `wipeSignatures` auf, dem
-  ersten zerstörenden Schritt — da waren alle Volumes schon ausgehängt.
-  Verloren ging nichts, aber grundlos. Ein `open` auf den Geräteknoten läuft
-  jetzt vor dem Aushängen und vor der Methodenauswahl, deckt also alle
-  Schreibarten ab; ein Test hält die Reihenfolge fest.
+- **Die erste Behebung war selbst ein Fehler.** Weil der Fehlschlag erst in
+  `wipeSignatures` auftrat — da waren alle Volumes schon ausgehängt —, habe ich
+  eine Schreibprobe *vor* das Aushängen gesetzt. Das kann nicht funktionieren:
+  `/dev/rdiskN` lässt sich nicht schreibend öffnen, solange Volumes gemountet
+  sind. Der nächste Lauf gegen echte Hardware brach entsprechend mit `EBUSY`
+  ab, **bevor überhaupt etwas versucht wurde** — und die Meldung lautete
+  „Der Datenträger konnte nicht ausgehängt werden", weil ich die Zeichenkette
+  des fehlgeschlagenen Aushängens wiederverwendet hatte, das gar nicht
+  stattgefunden hatte.
+
+  Und ich hatte einen **Test geschrieben, der genau diese falsche Reihenfolge
+  festschrieb.** Ein Test, der einen Fehler zementiert, ist schlimmer als
+  keiner.
+
+  Die Probe ist entfernt. Die Reihenfolge ist wieder aushängen → öffnen, und
+  das ursprüngliche Anliegen — kein ausgehängter Stick nach einem Fehlschlag —
+  ist dort behoben, wo es hingehört: im Fehlerpfad wird wieder eingehängt. Ein
+  belegter Geräteknoten hat jetzt eine eigene Meldung. Drei Tests halten die
+  Reihenfolge und das Wiedereinhängen fest.
 
 ### Behoben — während der Entwicklung gefunden
 

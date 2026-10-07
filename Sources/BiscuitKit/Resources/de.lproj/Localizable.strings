@@ -548,3 +548,5 @@
 "error.device_needs_full_disk_access" = "macOS blockiert den Zugriff auf den Datenträger. Biscuit braucht Festplattenvollzugriff.";
 "error.device_needs_full_disk_access.remedy" = "Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff: Biscuit einschalten, dann Biscuit beenden und neu öffnen. macOS kann diese Berechtigung nicht erfragen, sie muss von Hand erteilt werden. Auf dem Datenträger wurde nichts verändert.";
 "ui.outcome.open_privacy_settings" = "Einstellungen für Festplattenvollzugriff öffnen";
+"error.device_node_busy" = "Der Datenträger ist noch in Benutzung und kann nicht beschrieben werden.";
+"error.device_node_busy.remedy" = "Wirf den Datenträger im Finder aus, oder beende das Festplattendienstprogramm sowie Backup- und Virenschutzsoftware, und versuche es erneut.";

@@ -548,3 +548,5 @@
 "error.device_needs_full_disk_access" = "macOS is blocking access to the disk. Biscuit needs Full Disk Access.";
 "error.device_needs_full_disk_access.remedy" = "System Settings → Privacy & Security → Full Disk Access: switch Biscuit on, then quit and reopen Biscuit. macOS cannot ask for this permission; it has to be granted by hand. Nothing on the disk has been changed.";
 "ui.outcome.open_privacy_settings" = "Open Full Disk Access settings";
+"error.device_node_busy" = "The disk is still in use, so it cannot be written to.";
+"error.device_node_busy.remedy" = "Eject the disk in Finder, or quit Disk Utility and any backup or antivirus software, then try again.";

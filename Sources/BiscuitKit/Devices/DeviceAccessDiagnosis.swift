@@ -29,10 +29,14 @@ public enum DeviceAccessDiagnosis {
                 diagnostics: diagnostics
             )
         case EBUSY:
+            // Eigene Meldung, nicht die vom fehlgeschlagenen Aushängen. Die
+            // erste Fassung griff dort hin, und der Nutzer las „konnte nicht
+            // ausgehängt werden", während das Aushängen gar nicht versucht
+            // worden war.
             return BiscuitError(
                 kind: .partitioningFailed,
-                message: t(.errorDeviceBusy),
-                remedy: t(.errorDeviceBusyRemedy),
+                message: t(.errorDeviceNodeBusy),
+                remedy: t(.errorDeviceNodeBusyRemedy),
                 diagnostics: diagnostics
             )
         default:
