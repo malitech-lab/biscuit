@@ -168,12 +168,23 @@ Medium oder einem hängenden Vorgang geführt.
   `The value 'swiftbuild' is invalid` ab. Jetzt werden die Kandidaten
   durchprobiert; `native` steht bewusst nicht darunter.
 
-  Drei Gegenmaßnahmen, und nur die erste ist verlässlich:
-  `bundle.sh` wählt das Build-System jetzt ausdrücklich; es prüft, ob im Binary
-  ein `.build`-Pfad steht (maschinenunabhängig — eine Startprobe auf der
-  Baumaschine kann diesen Fehler *nicht* finden, weil der Pfad dort existiert);
-  und es startet das gebaute Programm zusätzlich einmal. Gegengeprüft: die
-  Prüfung erkennt den nativ gebauten Build und das zurückgezogene Archiv.
+  Auch der dritte Versuch — ein anderes Build-System erzwingen — trug nicht:
+  auf der Toolchain des CI-Runners erzeugt `next` denselben Zugriffscode wie
+  `native`, und `xcode` bricht mit „duplicate output file" ab. **Kein**
+  Build-System dort liefert ein eigenständiges Binary.
+
+  Behoben ist es daher an der Ursache: die gepackte App trägt ihre
+  Sprachtabellen jetzt in `Contents/Resources/<lang>.lproj` — der gewöhnlichen
+  Stelle einer macOS-App — und `L10n` sucht dort zuerst. Nachgewiesen: mit
+  gelöschtem Ressourcen-Bundle startet die App in beiden Sprachen.
+
+  Dabei fiel ein zweiter, davon unabhängiger Fehler auf: **der Helfer konnte die
+  Tabellen nie finden.** `biscuit-helper` ist ein eigenes Executable in
+  `Contents/MacOS`, seine `Bundle.main` *ist* dieses Verzeichnis, und jeder
+  Kandidat des Zugriffscodes zeigt dorthin — das Bundle lag in
+  `Contents/Resources`. Jede lokalisierte Fehlermeldung im Helfer wäre ein
+  `fatalError` gewesen, als Root, mitten im Beschreiben eines Datenträgers.
+  Dieselbe Auflösung behebt beides.
 
 - **Der Katalog wäre in jedem gepackten Build tot gewesen.**
   `Scripts/bundle.sh` schreibt alle `Biscuit*`-Schlüssel in die `Info.plist` und

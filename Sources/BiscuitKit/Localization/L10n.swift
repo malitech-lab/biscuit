@@ -5,9 +5,12 @@ import Foundation
 /// Why hand-rolled rather than `String(localized:)` or a String Catalogue:
 /// `.xcstrings` files are compiled by a build step that ships only with full
 /// Xcode. This project deliberately builds with the Command Line Tools alone, so
-/// the string tables are plain `.lproj/Localizable.strings` resources resolved
-/// through `Bundle.module`. That works identically in the app, in the privileged
-/// helper and in tests.
+/// the string tables are plain `.lproj/Localizable.strings` resources.
+///
+/// Where they are found is *not* uniform, contrary to what this comment claimed
+/// for a while: see `resolvedResourceBundle`. The packaged app and the
+/// privileged helper read them from `Contents/Resources`, tests from the
+/// SwiftPM resource bundle.
 ///
 /// Two rules keep the result maintainable:
 ///
@@ -43,11 +46,54 @@ public enum L10n {
     /// `Bundle.module` that shadows this one — so a test looking for the string
     /// tables would silently search the wrong bundle and report every key as
     /// missing.
-    public static var resourceBundle: Bundle { Bundle.module }
+    public static var resourceBundle: Bundle { resolvedResourceBundle }
+
+    /// Where the string tables actually are, decided once.
+    ///
+    /// `Bundle.module` alone is not enough, for two measured reasons.
+    ///
+    /// **The helper cannot use it at all.** `biscuit-helper` is a plain
+    /// executable inside `Contents/MacOS`, so its `Bundle.main` *is* that
+    /// directory. Every candidate the generated accessor checks points there,
+    /// while the resource bundle sits in `Contents/Resources`. Any localised
+    /// message in the helper would therefore hit `Bundle.module`'s
+    /// `fatalError` — as root, part-way through writing a disk.
+    ///
+    /// **And its layout depends on the build system.** SwiftPM generates a
+    /// different accessor per build system; the native one compiles in the
+    /// absolute path of the build directory and otherwise looks only in the
+    /// root of the `.app`, where a bundle may not go because it breaks the code
+    /// signature. A release built that way runs on the build machine and
+    /// nowhere else — which is exactly how v0.1.0-rc.1 shipped.
+    ///
+    /// So the packaged app carries its localisation in
+    /// `Contents/Resources/<lang>.lproj`, the ordinary place for a macOS app,
+    /// and this resolves to it. `Bundle.module` remains the fallback for tests
+    /// and `swift run`.
+    private static let resolvedResourceBundle: Bundle = {
+        // 1. Packaged app: Bundle.main is the .app, resources in Contents/Resources.
+        if Bundle.main.url(forResource: "en", withExtension: "lproj") != nil {
+            return Bundle.main
+        }
+
+        // 2. Helper or other executable inside an app bundle: Bundle.main is
+        //    Contents/MacOS, so Contents/Resources is one level up.
+        let siblingResources = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Resources", isDirectory: true)
+        if FileManager.default.fileExists(
+            atPath: siblingResources.appendingPathComponent("en.lproj").path
+        ), let bundle = Bundle(url: siblingResources) {
+            return bundle
+        }
+
+        // 3. Tests and `swift run`: the SwiftPM resource bundle.
+        return Bundle.module
+    }()
 
     /// Languages the build actually ships.
     public static var availableLanguages: [String] {
-        Bundle.module.localizations
+        resourceBundle.localizations
             .filter { $0 != "Base" }
             .sorted()
     }
@@ -76,7 +122,7 @@ public enum L10n {
         if value == Self.missingMarker {
             // Fall back to the base language before giving up, so a partially
             // translated language still shows real text.
-            if let base = Bundle.module.path(forResource: "en", ofType: "lproj"),
+            if let base = resourceBundle.path(forResource: "en", ofType: "lproj"),
                let baseBundle = Bundle(path: base) {
                 let fallback = baseBundle.localizedString(
                     forKey: key.rawValue,
@@ -120,11 +166,11 @@ public enum L10n {
             lock.unlock()
 
             let resolved: Bundle
-            if let path = Bundle.module.path(forResource: language, ofType: "lproj"),
+            if let path = resourceBundle.path(forResource: language, ofType: "lproj"),
                let bundle = Bundle(path: path) {
                 resolved = bundle
             } else {
-                resolved = Bundle.module
+                resolved = resourceBundle
             }
 
             lock.lock()

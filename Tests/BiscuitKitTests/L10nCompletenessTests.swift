@@ -424,3 +424,86 @@ struct DiagnosticLanguageTests {
         return results.filter { $0.count >= 6 }
     }
 }
+
+/// Where the string tables are found.
+///
+/// v0.1.0-rc.1 shipped, signed and checksummed, and crashed on every Mac except
+/// the build runner: `Bundle.module` resolved through an absolute build path
+/// compiled into the binary. The same mechanism also meant the privileged
+/// helper — a plain executable in `Contents/MacOS`, whose `Bundle.main` *is*
+/// that directory — could never find the tables at all, so any localised error
+/// message would have been a `fatalError` as root, part-way through writing a
+/// disk.
+///
+/// The packaged app therefore carries `Contents/Resources/<lang>.lproj`, the
+/// ordinary place for a macOS app, and `L10n` looks there first.
+@Suite("Herkunft der Zeichenkettentabellen")
+struct L10nResourceResolutionTests {
+    @Test("Die Tabellen sind auffindbar und geladen")
+    func tablesResolve() {
+        // Whichever branch won, the result has to contain real strings. In the
+        // test process this is the SwiftPM bundle; in the app it is
+        // Contents/Resources.
+        #expect(L10n.availableLanguages.sorted() == ["de", "en"])
+        #expect(L10n.resourceBundle.url(forResource: "en", withExtension: "lproj") != nil)
+        #expect(L10n.resourceBundle.url(forResource: "de", withExtension: "lproj") != nil)
+    }
+
+    @Test("Ein Schlüssel liefert Text, nicht den Schlüssel")
+    func lookupWorks() {
+        // The end-to-end proof that resolution produced a usable bundle: a
+        // failed lookup returns the key itself.
+        let value = t(.actionCancel)
+        #expect(value != StringKey.actionCancel.rawValue)
+        #expect(!value.isEmpty)
+    }
+
+    @Test("Das Paketskript legt die Tabellen nach Contents/Resources")
+    func bundleScriptCopiesTables() throws {
+        // The app depends on this placement, so the script must not stop doing
+        // it — and a comment is not a guarantee.
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var source: String?
+        for _ in 0..<5 {
+            let candidate = directory.appendingPathComponent("Scripts/bundle.sh")
+            if let data = try? Data(contentsOf: candidate) {
+                source = String(decoding: data, as: UTF8.self)
+                break
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        let script = try #require(source, "bundle.sh nicht gefunden")
+        #expect(script.contains("$APP/Contents/Resources/"))
+        #expect(script.contains(".lproj"))
+        // And it must verify the place it reads from, not some other path.
+        #expect(
+            script.contains(#"strings_file="$APP/Contents/Resources/$language.lproj/Localizable.strings""#),
+            "die Prüfung sieht nicht an der Stelle nach, aus der die App liest"
+        )
+    }
+
+    @Test("L10n greift nicht direkt auf Bundle.module zu")
+    func l10nUsesResolvedBundle() throws {
+        // Exactly one reference may remain: the fallback for tests and
+        // `swift run`. More means a lookup path that bypasses the resolution
+        // and would crash the helper.
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var source: String?
+        for _ in 0..<5 {
+            let candidate = directory
+                .appendingPathComponent("Sources/BiscuitKit/Localization/L10n.swift")
+            if let data = try? Data(contentsOf: candidate) {
+                source = String(decoding: data, as: UTF8.self)
+                break
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        let text = try #require(source, "L10n.swift nicht gefunden")
+        let codeLines = text.split(separator: "\n").filter {
+            let trimmed = $0.trimmingCharacters(in: .whitespaces)
+            return !trimmed.hasPrefix("//") && !trimmed.hasPrefix("///")
+        }
+        let uses = codeLines.filter { $0.contains("Bundle.module") }.count
+        #expect(uses == 1, "erwartet genau den Rückfall, gefunden \(uses)")
+    }
+}

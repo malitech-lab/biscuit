@@ -205,12 +205,26 @@ done
 # So the layout is not a choice. If the binary was built by the native build
 # system it will look in the wrong place, and the launch check below is what
 # catches that — a file existing at a path this script guessed proves nothing.
-RES_BUNDLE="$APP/Contents/Resources/Biscuit_BiscuitKit.bundle"
+# Die Sprachtabellen zusätzlich direkt nach Contents/Resources legen — dorthin,
+# wo eine macOS-App sie normalerweise trägt.
+#
+# Das Ressourcen-Bundle allein genügt nicht. Der Helfer ist ein eigenes
+# Executable in Contents/MacOS; seine Bundle.main *ist* dieses Verzeichnis, und
+# jeder Kandidat des generierten Zugriffscodes zeigt dorthin, während das
+# Ressourcen-Bundle in Contents/Resources liegt. Eine lokalisierte Meldung im
+# Helfer wäre damit ein fatalError — als Root, mitten im Schreiben. Und die
+# Lage innerhalb des Ressourcen-Bundles hängt vom Build-System ab.
+#
+# L10n.resolvedResourceBundle sucht deshalb zuerst hier.
+for lproj in "$APP/Contents/Resources/Biscuit_BiscuitKit.bundle"/Contents/Resources/*.lproj \
+             "$APP/Contents/Resources/Biscuit_BiscuitKit.bundle"/*.lproj; do
+  [ -d "$lproj" ] || continue
+  cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 for language in en de; do
-  strings_file="$RES_BUNDLE/Contents/Resources/$language.lproj/Localizable.strings"
-  if [ ! -f "$strings_file" ]; then
-    strings_file="$RES_BUNDLE/$language.lproj/Localizable.strings"
-  fi
+  # Geprüft wird die Stelle, aus der die App tatsächlich liest.
+  strings_file="$APP/Contents/Resources/$language.lproj/Localizable.strings"
   [ -f "$strings_file" ] || die "Zeichenkettentabelle für '$language' fehlt im Bundle"
   plutil -lint "$strings_file" >/dev/null || die "Zeichenkettentabelle für '$language' ist ungültig"
 done
@@ -302,34 +316,25 @@ find "$APP" -perm -o+w -print0 | while IFS= read -r -d '' entry; do
   chmod o-w "$entry"
 done
 
-# Ist das Bundle eigenständig?
+# Hängt das Binary noch am Build-Verzeichnis?
 #
-# Diese Prüfung ist die eigentliche Lehre aus v0.1.0-rc.1. Das Release war
-# signiert, hatte eine gültige Prüfsumme — und stürzte auf jeder *anderen*
-# Maschine beim Start ab.
+# Früher war das tödlich: v0.1.0-rc.1 suchte sein Ressourcen-Bundle über einen
+# einkompilierten absoluten Build-Pfad und stürzte auf jedem anderen Mac ab.
+# Inzwischen liest die Lokalisierung aus Contents/Resources und der einzige
+# andere Zugriff auf Bundle.module ist der Rückfall, der dann nicht mehr läuft —
+# die Prüfung weiter oben stellt sicher, dass die Tabellen dort liegen.
 #
-# Ursache: SwiftPM erzeugt je Build-System einen anderen Zugriffscode für
-# `Bundle.module`. Der des nativen Systems prüft genau zwei Pfade — das
-# Wurzelverzeichnis des .app und den **absoluten Pfad des Build-Verzeichnisses**,
-# einkompiliert als Zeichenkette. Auf der Baumaschine existiert dieser Pfad, also
-# funktioniert dort alles: der Start, jede Rauchprobe, jede Prüfung. Auf einem
-# fremden Rechner zeigt er ins Leere und die App stirbt sofort.
-#
-# Ins Wurzelverzeichnis des .app darf das Ressourcen-Bundle nicht, weil das die
-# Code-Signatur bricht ("unsealed contents present in the bundle root").
-# Deshalb wird hier nicht gestartet, sondern nachgesehen, ob das Binary
-# überhaupt einen Build-Pfad braucht. Das Ergebnis hängt nicht davon ab, auf
-# welcher Maschine geprüft wird — anders als bei jeder Startprobe.
+# Deshalb nur noch ein Hinweis, keine Abbruchbedingung: die Ursache ist behoben,
+# nicht bloß die Meldung. Bliebe es ein Fehler, würde der Paketlauf auf
+# Toolchains scheitern, auf denen kein Build-System ein eigenständiges Binary
+# erzeugt — und das ohne Not, weil die App ohne dieses Bundle läuft.
 if strings "$APP/Contents/MacOS/Biscuit" 2>/dev/null \
    | grep -q "\.build/.*Biscuit_BiscuitKit\.bundle"; then
-  die "Das Binary sucht sein Ressourcen-Bundle im Build-Verzeichnis.
-  Das .app ist damit nicht eigenständig: hier läuft es, auf einem fremden Mac
-  stürzt es beim Start ab. Gebaut wurde offenbar mit dem nativen
-  SwiftPM-Build-System. Abhilfe: mit dem Xcode-Build-System bauen,
-  z. B. SWIFTPM_BUILD_SYSTEM=swiftbuild oder
-  swift build --build-system swiftbuild."
+  warn "Das Binary nennt noch einen Build-Pfad für das Ressourcen-Bundle."
+  warn "Unkritisch, solange Contents/Resources die Sprachtabellen enthält (oben geprüft)."
+else
+  log "Binary nennt keinen Build-Pfad"
 fi
-log "Bundle ist eigenständig: kein Build-Pfad im Binary"
 
 # Startprobe. Zusätzlich, nicht stattdessen.
 #
