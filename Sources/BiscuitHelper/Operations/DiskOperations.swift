@@ -79,6 +79,23 @@ struct DiskOperations: Sendable {
 
     // MARK: - Partition table hygiene
 
+    /// Checks write access to the device node *before* anything destructive.
+    ///
+    /// The first real run failed at `wipeSignatures`, which is the first
+    /// destructive step — but by then every volume on the stick had already
+    /// been unmounted. Nothing was lost, yet the user was left with an
+    /// unmounted disk and an errno. Probing first costs one `open` and keeps
+    /// the failure entirely harmless.
+    func assertDeviceWritable(device: StorageDevice, context: JobContext) throws {
+        let fd = open(device.rawDevicePath, O_WRONLY)
+        if fd >= 0 {
+            close(fd)
+            context.log(.debug, "device node writable: \(device.rawDevicePath)")
+            return
+        }
+        throw DeviceAccessDiagnosis.error(errno: errno, path: device.rawDevicePath)
+    }
+
     /// Overwrites the first and last megabyte of the device.
     ///
     /// Required before repartitioning: a leftover GPT backup header at the end
@@ -89,11 +106,7 @@ struct DiskOperations: Sendable {
 
         let fd = open(device.rawDevicePath, O_WRONLY)
         guard fd >= 0 else {
-            throw BiscuitError(
-                kind: .partitioningFailed,
-                message: t(.errorDeviceAccessDenied),
-                diagnostics: "errno \(errno): \(String(cString: strerror(errno)))"
-            )
+            throw DeviceAccessDiagnosis.error(errno: errno, path: device.rawDevicePath)
         }
         defer { close(fd) }
 

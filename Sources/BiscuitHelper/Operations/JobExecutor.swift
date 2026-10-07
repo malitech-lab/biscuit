@@ -54,6 +54,13 @@ struct JobExecutor: JobRunning {
                 expectedSizeBytes: request.expectedTargetSizeBytes,
                 context: context
             )
+            // Vor dem ersten zerstörenden Schritt und vor dem Aushängen: ein
+            // `open` auf den Geräteknoten. Der erste echte Lauf scheiterte erst
+            // in `wipeSignatures` — da waren alle Volumes schon ausgehängt, und
+            // der Nutzer stand mit einem unmontierten Stick und einem errno da.
+            // Die Probe kostet einen Systemaufruf und hält den Fehlschlag
+            // vollständig harmlos.
+            try disk.assertDeviceWritable(device: device, context: context)
             context.report(phase: .preparing, phaseFraction: 1)
 
             var bytesWritten: UInt64 = 0

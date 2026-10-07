@@ -133,6 +133,39 @@ unter dem alten Namen, die migriert werden müsste.
   abgeschaltet — die Ausgabe wird dort angezeigt, nicht geparst. Die CI nutzt
   dieselbe Stufe, damit lokal und dort dasselbe gilt.
 
+### Behoben — beim ersten Lauf gegen echte Hardware
+
+- **Der häufigste reale Fehlschlag war nicht erklärt.** Der erste Lauf gegen
+  einen echten USB-Stick (Intenso, 31,5 GB, macOS 27.0.1) endete mit:
+
+      ERROR helper: Der Zugriff auf den Geräteknoten wurde verweigert.
+                    — errno 1: Operation not permitted
+
+  Das war alles: keine Abhilfe, ein nacktes errno — und ein Stick, dessen
+  Volumes bereits ausgehängt waren.
+
+  Die Meldung war zudem sachlich falsch. `errno 1` ist `EPERM`, nicht `EACCES`.
+  Auf derselben Maschine gemessen: ein unprivilegierter Prozess bekommt beim
+  Öffnen von `/dev/rdisk7` **`EACCES` (13)**. Der Helfer bekam **`EPERM` (1)** —
+  er lief also als Root, und Dateirechte waren nicht die Ursache. `EPERM` ist
+  auf macOS die Signatur einer *Richtlinien*-Ablehnung: Rohzugriff auf
+  Datenträger verlangt Festplattenvollzugriff, der auch für Root gilt.
+
+  Diese Berechtigung lässt sich **nicht** programmatisch erfragen. Es gibt
+  keinen Dialog auszulösen — anders als bei
+  `NSRemovableVolumesUsageDescription`, das den Dateizugriff auf ein
+  *gemountetes* Wechselmedium regelt und ein anderer TCC-Dienst ist. Das
+  Einzige, was hilft, ist genau zu sagen, was wo zu erteilen ist. Jetzt nennt
+  die Meldung den Einstellungsbereich, den Schalter, den nötigen Neustart und
+  dass auf dem Datenträger nichts verändert wurde; ein Knopf öffnet den Bereich
+  direkt.
+
+- **Der Fehlschlag kam zu spät.** Er trat erst in `wipeSignatures` auf, dem
+  ersten zerstörenden Schritt — da waren alle Volumes schon ausgehängt.
+  Verloren ging nichts, aber grundlos. Ein `open` auf den Geräteknoten läuft
+  jetzt vor dem Aushängen und vor der Methodenauswahl, deckt also alle
+  Schreibarten ab; ein Test hält die Reihenfolge fest.
+
 ### Behoben — während der Entwicklung gefunden
 
 Diese Fehler wurden durch Integrationstests gegen echte Geräte, echte Werkzeuge

@@ -1,4 +1,5 @@
 import BiscuitKit
+import AppKit
 import SwiftUI
 
 /// Shows the result of the previous run once the form is visible again.
@@ -58,6 +59,12 @@ struct OutcomeSection: View {
         return parts.joined(separator: " · ")
     }
 
+    /// Deep link to Privacy & Security → Full Disk Access.
+    ///
+    /// Verified to be accepted by `open(1)` on macOS 27 before being used here.
+    static let fullDiskAccessPane =
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+
     private func failureCard(_ failure: BiscuitError) -> some View {
         SectionCard(title: t(.outcomeTitleFailed), systemImage: "exclamationmark.triangle") {
             VStack(alignment: .leading, spacing: 10) {
@@ -66,6 +73,19 @@ struct OutcomeSection: View {
                     text: failure.message,
                     detail: failure.remedy
                 )
+
+                // Full Disk Access cannot be requested programmatically, so the
+                // best Biscuit can do is take the user to the right pane. A
+                // written path they have to retype is not enough when the
+                // alternative is one click.
+                if failure.message == t(.errorDeviceNeedsFullDiskAccess) {
+                    Button(t(.outcomeOpenPrivacySettings)) {
+                        if let url = URL(string: Self.fullDiskAccessPane) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
 
                 if let diagnostics = failure.diagnostics {
                     DisclosureGroup(t(.outcomeTechnicalDetails)) {

@@ -545,3 +545,6 @@
 "ui.answer_template.architecture" = "Built for %@, matching the selected image.";
 "error.wim_tool_rejected" = "The wimlib program was refused for security reasons.";
 "error.wim_tool_rejected.remedy" = "Install it with “brew install wimlib”, or use a Biscuit build with wimlib included.";
+"error.device_needs_full_disk_access" = "macOS is blocking access to the disk. Biscuit needs Full Disk Access.";
+"error.device_needs_full_disk_access.remedy" = "System Settings → Privacy & Security → Full Disk Access: switch Biscuit on, then quit and reopen Biscuit. macOS cannot ask for this permission; it has to be granted by hand. Nothing on the disk has been changed.";
+"ui.outcome.open_privacy_settings" = "Open Full Disk Access settings";

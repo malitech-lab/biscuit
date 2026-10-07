@@ -469,7 +469,7 @@ struct SignalSetupTests {
     @Test("Kein Test schaltet SIGPIPE prozessweit um")
     func noTestResetsTheDisposition() throws {
         // Die Regel, die dieser Suite selbst auf die Füße gefallen ist.
-        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         var offenders: [String] = []
         guard let walker = FileManager.default.enumerator(
             at: directory, includingPropertiesForKeys: nil

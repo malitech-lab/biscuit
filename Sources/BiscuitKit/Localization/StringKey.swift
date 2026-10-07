@@ -113,6 +113,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case errorDeviceOpenFailedBusyRemedy = "error.device_open_failed.busy_remedy"
     case errorDeviceOpenFailedRemedy = "error.device_open_failed.remedy"
     case errorDeviceAccessDenied = "error.device_access_denied"
+    case outcomeOpenPrivacySettings = "ui.outcome.open_privacy_settings"
+    case errorDeviceNeedsFullDiskAccess = "error.device_needs_full_disk_access"
+    case errorDeviceNeedsFullDiskAccessRemedy = "error.device_needs_full_disk_access.remedy"
 
     // MARK: - Errors: writing and verifying
 

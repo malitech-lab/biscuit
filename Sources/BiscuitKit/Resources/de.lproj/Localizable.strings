@@ -545,3 +545,6 @@
 "ui.answer_template.architecture" = "Für %@ erzeugt, passend zum gewählten Abbild.";
 "error.wim_tool_rejected" = "Das wimlib-Programm wurde aus Sicherheitsgründen abgelehnt.";
 "error.wim_tool_rejected.remedy" = "Installiere es mit „brew install wimlib“ oder nutze einen Biscuit-Build mit eingebundenem wimlib.";
+"error.device_needs_full_disk_access" = "macOS blockiert den Zugriff auf den Datenträger. Biscuit braucht Festplattenvollzugriff.";
+"error.device_needs_full_disk_access.remedy" = "Systemeinstellungen → Datenschutz & Sicherheit → Festplattenvollzugriff: Biscuit einschalten, dann Biscuit beenden und neu öffnen. macOS kann diese Berechtigung nicht erfragen, sie muss von Hand erteilt werden. Auf dem Datenträger wurde nichts verändert.";
+"ui.outcome.open_privacy_settings" = "Einstellungen für Festplattenvollzugriff öffnen";
