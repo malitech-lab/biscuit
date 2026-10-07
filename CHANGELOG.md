@@ -160,6 +160,28 @@ unter dem alten Namen, die migriert werden müsste.
   dass auf dem Datenträger nichts verändert wurde; ein Knopf öffnet den Bereich
   direkt.
 
+- **Die exFAT-Namensgrenze war falsch — und zwei Tests bestätigten sie
+  gegenseitig.** `VolumeLabel.maximumLength` nannte 15 Zeichen für exFAT. Der
+  richtige Wert ist 11. Am Wegwerf-Abbild gemessen: 11 wird angenommen, 12
+  abgelehnt; FAT32 mit 11 und HFS+ mit 127 stimmten.
+
+  Gefunden hat es erst echte Hardware. Das auf 15 gekürzte Etikett eines
+  Windows-ISOs führte zu
+
+      CCCOMA_X64FRE_D does not appear to be a valid volume name
+      for its file system
+
+  aus `diskutil eraseDisk` — **nachdem die Partitionssignaturen bereits
+  überschrieben waren.** Eine falsche Konstante wurde so zu einem halb
+  gelöschten Stick.
+
+  Warum kein Test das sah: `VolumeLabelTests` prüfte die Bereinigung gegen
+  **dieselbe** Konstante, die zu prüfen war — eine geschlossene Schleife, in
+  der beide Seiten übereinstimmten und beide falsch waren. Der Test behauptete
+  sogar „exFAT erlaubt 15 Zeichen" im Namen. Jetzt messen
+  `VolumeLabelAgreementTests` die Grenzwerte an einem Abbild gegen das echte
+  `diskutil`; gegengeprüft, dass sie den alten Wert 15 als „zu hoch" melden.
+
 - **Die erste Behebung war selbst ein Fehler.** Weil der Fehlschlag erst in
   `wipeSignatures` auftrat — da waren alle Volumes schon ausgehängt —, habe ich
   eine Schreibprobe *vor* das Aushängen gesetzt. Das kann nicht funktionieren:

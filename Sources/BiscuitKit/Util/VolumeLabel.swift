@@ -15,8 +15,20 @@ public enum VolumeLabel {
         switch filesystem {
         // FAT32 stores an 11-byte 8.3-style label in the boot sector.
         case .fat32: return 11
-        // exFAT allows 15 UTF-16 code units.
-        case .exfat: return 15
+        // exFAT: 11, nicht 15.
+        //
+        // Hier stand 15, und niemand hat es gemerkt, weil kein Test die Werte
+        // je gegen `diskutil` gehalten hat. Aufgefallen beim ersten echten
+        // Löschversuch: das Etikett eines Windows-ISOs („CCCOMA_X64FRE_D", auf
+        // 15 gekürzt) wurde von `diskutil eraseDisk` mit
+        // „does not appear to be a valid volume name for its file system“
+        // abgelehnt — nachdem die Signaturen bereits überschrieben waren.
+        //
+        // Gemessen an einem Wegwerf-Abbild: 11 Zeichen werden angenommen, 12
+        // abgelehnt. Die exFAT-Spezifikation sieht für den Eintrag
+        // „Volume Label“ ebenfalls 11 Zeichen vor. `VolumeLabelAgreementTests`
+        // hält das jetzt gegen das echte Werkzeug.
+        case .exfat: return 11
         case .hfsPlus, .apfs: return 127
         }
     }

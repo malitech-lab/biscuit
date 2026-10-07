@@ -10,12 +10,29 @@ struct VolumeLabelTests {
         #expect(VolumeLabel.sanitise("a", filesystem: .fat32) == "A")
     }
 
-    @Test("exFAT erlaubt 15 Zeichen und behält die Schreibweise")
+    /// exFAT: 11 Zeichen, nicht 15.
+    ///
+    /// Dieser Test behauptete 15 — und bestand, weil er die Bereinigung gegen
+    /// dieselbe falsche Konstante hielt, die er prüfen sollte. Eine
+    /// geschlossene Schleife: beide Seiten stimmten überein, beide waren
+    /// falsch. Aufgefallen ist es erst, als `diskutil` auf echter Hardware das
+    /// gekürzte Etikett eines Windows-ISOs ablehnte — nach dem Überschreiben
+    /// der Signaturen.
+    ///
+    /// Die Zahl wird jetzt zusätzlich in `VolumeLabelAgreementTests` gegen das
+    /// echte Werkzeug gemessen. Dieser Test prüft die Bereinigung, jener den
+    /// Grenzwert; nur zusammen taugen sie.
+    @Test("exFAT kürzt auf 11 Zeichen und behält die Schreibweise")
     func exfat() {
         #expect(VolumeLabel.sanitise("MeinStick", filesystem: .exfat) == "MeinStick")
         #expect(
             VolumeLabel.sanitise("EinSehrLangerNameHier", filesystem: .exfat)
-                == "EinSehrLangerNa"
+                == "EinSehrLang"
+        )
+        // Genau das Etikett, das auf dem Stick gescheitert ist.
+        #expect(
+            VolumeLabel.sanitise("CCCOMA_X64FRE_DE-DE_DV9", filesystem: .exfat)
+                == "CCCOMA_X64F"
         )
     }
 
