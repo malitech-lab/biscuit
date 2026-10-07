@@ -40,9 +40,18 @@ public struct WIMTool: Sendable {
             arguments: ["--version"],
             timeout: 20
         )
-        return result?.succeeded == true
-            ? result?.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-            : nil
+        guard result?.succeeded == true, let output = result?.standardOutput else {
+            return nil
+        }
+        // Nur die erste Zeile. `wimlib-imagex --version` gibt sieben Zeilen
+        // aus — Version, Copyright, Lizenzhinweis, Gewährleistungsausschluss
+        // und eine Fehlermeldungsadresse. Die landeten vollständig als ein
+        // Protokolleintrag im Diagnosebericht des Nutzers und verdrängten dort
+        // die Zeilen, auf die es ankommt.
+        return output
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
     /// Splits `source` into `destination` (`…/install.swm`) plus siblings.

@@ -326,3 +326,27 @@ struct WIMToolCallSiteTests {
         )
     }
 }
+
+/// `version()` liefert eine Zeile, nicht den Lizenztext.
+@Suite("wimlib-Versionsmeldung", .serialized)
+struct WIMToolVersionTests {
+    @Test("Die Version ist einzeilig", .timeLimit(.minutes(2)))
+    func versionIsOneLine() async throws {
+        // Im Diagnosebericht eines echten Laufs stand die vollständige
+        // siebenzeilige Ausgabe von `wimlib-imagex --version` als *ein*
+        // Protokolleintrag — samt Copyright, GPL-Hinweis,
+        // Gewährleistungsausschluss und Forenadresse. Das verdrängt die Zeilen,
+        // auf die es in einem Fehlerbericht ankommt.
+        guard let tool = WIMTool.locateTrusted(preferring: nil, helperExecutable: nil) else {
+            return
+        }
+        guard let version = await tool.version() else {
+            Issue.record(Comment("wimlib meldet keine Version"))
+            return
+        }
+        #expect(!version.contains("\n"), "mehrzeilig: \(version.prefix(80))")
+        #expect(!version.lowercased().contains("copyright"))
+        #expect(!version.lowercased().contains("warranty"))
+        #expect(version.lowercased().contains("wimlib"))
+    }
+}

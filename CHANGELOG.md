@@ -133,6 +133,26 @@ unter dem alten Namen, die migriert werden müsste.
   abgeschaltet — die Ausgabe wird dort angezeigt, nicht geparst. Die CI nutzt
   dieselbe Stufe, damit lokal und dort dasselbe gilt.
 
+### Erster erfolgreicher Lauf gegen echte Hardware
+
+Windows-11-Medium auf einem 31,5-GB-Stick, 11:18, 8,98 GB geschrieben:
+GPT + FAT32, 1064 Dateien kopiert, `install.wim` (8,14 GB) in drei
+`.swm`-Teile unter der 4-GB-Grenze zerlegt, `autounattend.xml` abgelegt,
+Boot-Dateien geprüft. Nachgemessen: keine Datei über 4 GB, `bootmgr`,
+`bootmgr.efi` und `sources/boot.wim` vorhanden.
+
+**Ob das Medium startet, ist damit nicht gezeigt.** Bootfähigkeit auf
+Fremd-Hardware bleibt der ungeprüfte Teil.
+
+Ein vorangegangener Lauf desselben Pfades blieb nach rund fünf Minuten
+stehen; der Helfer arbeitete zu Ende und meldete „finished", während die
+App keinen Rahmen mehr erhielt. **Die Ursache wurde nicht gefunden.** Der
+folgende Lauf gelang ohne gezielte Änderung daran, also ist nichts
+belegt — zwei naheliegende Erklärungen (Leerlauf-Timeout, nicht-monotone
+Prozentangabe) wurden gemessen und ausgeschlossen, und Sendefehler werden
+jetzt protokolliert statt verworfen, damit ein Wiederauftreten auswertbar
+ist.
+
 ### Behoben — beim ersten Lauf gegen echte Hardware
 
 - **Der häufigste reale Fehlschlag war nicht erklärt.** Der erste Lauf gegen
