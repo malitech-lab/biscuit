@@ -550,3 +550,6 @@
 "ui.outcome.open_privacy_settings" = "Open Full Disk Access settings";
 "error.device_node_busy" = "The disk is still in use, so it cannot be written to.";
 "error.device_node_busy.remedy" = "Eject the disk in Finder, or quit Disk Utility and any backup or antivirus software, then try again.";
+"ui.options.erase_ignores_source" = "This method ignores the selected image.";
+"ui.options.erase_ignores_source.detail" = "“Erase only” wipes the disk and writes nothing. To put the image on the disk, pick a different method above.";
+"ui.confirm.source_unused" = "not used — this method only erases";

@@ -95,6 +95,13 @@ struct ConfirmationSheet: View {
                     DetailRow(label: t(.confirmFieldSource), value: source.url.lastPathComponent)
                     DetailRow(label: t(.confirmFieldSize), value: ByteCount.format(source.sizeBytes))
                 }
+                if coordinator.strategy == .eraseOnly, coordinator.source != nil {
+                    // Letzte Gelegenheit, den Widerspruch zu bemerken.
+                    DetailRow(
+                        label: t(.confirmFieldSource),
+                        value: t(.confirmSourceUnused)
+                    )
+                }
                 if coordinator.strategy == .eraseOnly {
                     DetailRow(label: t(.confirmFieldFilesystem), value: coordinator.eraseFilesystem.rawValue)
                     DetailRow(label: t(.confirmFieldScheme), value: coordinator.erasePartitionScheme.rawValue)

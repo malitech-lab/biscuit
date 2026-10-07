@@ -29,6 +29,18 @@ struct OptionsSection: View {
                 labelField
 
                 if coordinator.strategy == .eraseOnly {
+                    // Eine gewählte Quelle und „nur löschen" widersprechen sich.
+                    // Ein Nutzer hat diese Kombination dreimal hintereinander
+                    // ausgeführt und war jedes Mal überrascht, einen leeren
+                    // Stick vorzufinden. Das ist kein Bedienfehler, sondern
+                    // eine Oberfläche, die den Widerspruch nicht benennt.
+                    if coordinator.source != nil {
+                        CalloutView(
+                            kind: .warning,
+                            text: t(.optionsEraseIgnoresSource),
+                            detail: t(.optionsEraseIgnoresSourceDetail)
+                        )
+                    }
                     eraseOptions
                 }
 

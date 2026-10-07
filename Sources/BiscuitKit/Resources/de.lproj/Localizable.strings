@@ -550,3 +550,6 @@
 "ui.outcome.open_privacy_settings" = "Einstellungen für Festplattenvollzugriff öffnen";
 "error.device_node_busy" = "Der Datenträger ist noch in Benutzung und kann nicht beschrieben werden.";
 "error.device_node_busy.remedy" = "Wirf den Datenträger im Finder aus, oder beende das Festplattendienstprogramm sowie Backup- und Virenschutzsoftware, und versuche es erneut.";
+"ui.options.erase_ignores_source" = "Diese Methode ignoriert das gewählte Abbild.";
+"ui.options.erase_ignores_source.detail" = "„Nur löschen“ leert den Datenträger und schreibt nichts. Wähle oben eine andere Methode, um das Abbild auf den Datenträger zu bringen.";
+"ui.confirm.source_unused" = "wird nicht verwendet — diese Methode löscht nur";

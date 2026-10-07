@@ -531,31 +531,31 @@ final class JobCoordinator {
     }
 
     func exportableLog() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        var lines = [
-            "Biscuit \(AppInfo.version) (\(AppInfo.build))",
-            "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)",
-            ""
-        ]
-        if let device = selectedDevice {
-            lines.append("Ziel: \(device.displayName) \(device.bsdName) \(ByteCount.format(device.sizeBytes)) \(device.bus.displayName)")
-        }
-        if let source {
-            lines.append("Quelle: \(source.url.lastPathComponent) \(source.payload.rawValue) \(ByteCount.format(source.sizeBytes))")
-        }
-        lines.append("Methode: \(strategy.rawValue)")
-        lines.append("")
-        for entry in logs {
-            lines.append("[\(formatter.string(from: entry.timestamp))] \(entry.level.rawValue.uppercased()) \(entry.source): \(entry.message)")
-        }
-        if let failure {
-            lines.append("")
-            lines.append("FEHLER \(failure.kind.rawValue): \(failure.message)")
-            if let remedy = failure.remedy { lines.append("ABHILFE: \(remedy)") }
-            if let diagnostics = failure.diagnostics { lines.append("DIAGNOSE: \(diagnostics)") }
-        }
-        return lines.joined(separator: "\n")
+        DiagnosticsReport.render(
+            context: .init(
+                appVersion: AppInfo.version,
+                appBuild: AppInfo.build,
+                osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+                target: selectedDevice.map {
+                    "\($0.displayName) \($0.bsdName) "
+                    + "\(ByteCount.format($0.sizeBytes)) \($0.bus.displayName)"
+                },
+                source: source.map {
+                    "\($0.url.lastPathComponent) \($0.payload.rawValue) "
+                    + "\(ByteCount.format($0.sizeBytes))"
+                },
+                strategy: strategy
+            ),
+            entries: logs.map {
+                .init(
+                    timestamp: $0.timestamp,
+                    level: $0.level.rawValue,
+                    source: $0.source,
+                    message: $0.message
+                )
+            },
+            failure: failure
+        )
     }
 
     func reset() {

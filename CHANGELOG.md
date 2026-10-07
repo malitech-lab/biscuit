@@ -160,6 +160,39 @@ unter dem alten Namen, die migriert werden müsste.
   dass auf dem Datenträger nichts verändert wurde; ein Knopf öffnet den Bereich
   direkt.
 
+- **Erster vollständiger Durchlauf gegen echte Hardware.** `erase_only` auf
+  einem 31,5-GB-USB-Stick: ausgehängt, Signaturen überschrieben, GPT + exFAT
+  erstellt, eingehängt, ausgeworfen — 13 Sekunden, fehlerfrei.
+
+- **Die Oberfläche versprach etwas, das die Methode nicht tut.** Derselbe
+  Nutzer führte diesen Lauf dreimal aus, mit einem ausgewählten Windows-ISO,
+  und war jedes Mal überrascht, einen leeren Stick vorzufinden. Kein
+  Bedienfehler: der Protokollkopf druckte
+
+      Quelle: Windows11_Client_x64_de-de_26300_9457.iso windows_installer 9,05 GB
+      Methode: erase_only
+
+  direkt untereinander, was sich wie eine Zusage liest. Die Bestätigung ließ die
+  Quelle bei dieser Methode korrekt weg — dieser Text nicht.
+
+  Jetzt nennt der Bericht die Quelle nur, wenn die Methode sie liest, und sagt
+  andernfalls ausdrücklich, dass nichts geschrieben wird. Zusätzlich warnt die
+  Optionsansicht, sobald Quelle und „nur löschen“ zusammentreffen, und die
+  Bestätigung weist die Quelle als „wird nicht verwendet“ aus.
+
+- **Die Beschriftungen des Diagnoseberichts waren deutsch.** `Ziel`, `Quelle`,
+  `Methode`, `FEHLER`, `ABHILFE`, `DIAGNOSE` — in einem Text, der in einen
+  Fehlerbericht wandert, wo die Projektregel Englisch vorschreibt. Der Test, der
+  das abfangen sollte, durchsucht den Quelltext nach einer **handgeschriebenen
+  Liste** deutscher Wörter, und keines dieser sechs stand darin. Eine Wortliste
+  ist nie vollständig.
+
+  Der Berichtsbau liegt deshalb jetzt als `DiagnosticsReport` in BiscuitKit, wo
+  er geprüft werden kann, und wird über seine **Ausgabe** getestet statt über
+  einen Wortscan: zehn Tests, die die englischen Beschriftungen verlangen, die
+  Abwesenheit der deutschen, und dass die Quellzeile nur bei schreibenden
+  Methoden erscheint.
+
 - **Die exFAT-Namensgrenze war falsch — und zwei Tests bestätigten sie
   gegenseitig.** `VolumeLabel.maximumLength` nannte 15 Zeichen für exFAT. Der
   richtige Wert ist 11. Am Wegwerf-Abbild gemessen: 11 wird angenommen, 12
