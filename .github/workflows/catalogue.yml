@@ -1,0 +1,159 @@
+name: Katalog
+
+# The catalogue is rebuilt on a schedule rather than on release, because its
+# contents change when a distribution publishes — not when Biscuit does. A user
+# running last month's build should still be offered this week's Debian.
+on:
+  schedule:
+    # Daily, offset from the hour: the distribution mirrors this talks to are
+    # busiest exactly on it.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      allow_partial:
+        description: "Publish even if some sources fail verification"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: catalogue
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Bauen und signieren
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Werkzeuge
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gnupg openssl
+          gpg --version | head -1
+          openssl version
+
+      - name: Quellen auflösen (Trockenlauf)
+        # Runs first and separately: a publisher that moved a file shows up here
+        # as a clear failure, rather than as a confusing GPG error later.
+        run: python3 Scripts/build-catalogue.py --dry-run --output /dev/null
+
+      - name: Katalog bauen
+        run: |
+          mkdir -p dist
+          if [ "${{ inputs.allow_partial }}" = "true" ]; then
+            python3 Scripts/build-catalogue.py --output dist/catalogue.json --allow-partial
+          else
+            python3 Scripts/build-catalogue.py --output dist/catalogue.json
+          fi
+
+      - name: Signaturschlüssel ablegen
+        env:
+          PRIVKEY: ${{ secrets.BISCUIT_RELEASE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$PRIVKEY" ]; then
+            echo "::error::BISCUIT_RELEASE_PRIVATE_KEY ist nicht gesetzt."
+            echo "Erzeuge ein Schlüsselpaar mit Scripts/keygen.sh."
+            exit 1
+          fi
+          mkdir -p secrets && chmod 700 secrets
+          printf '%s' "$PRIVKEY" > secrets/biscuit-release.key
+          chmod 600 secrets/biscuit-release.key
+
+      - name: Signieren
+        run: Scripts/sign-catalogue.sh --catalogue dist/catalogue.json
+
+      - name: Gegen den veröffentlichten Schlüssel prüfen
+        env:
+          PUBKEY: ${{ vars.BISCUIT_UPDATE_PUBKEY }}
+        run: |
+          # Verifies with only the public half, exactly as the shipped app will.
+          # A mismatch here means every installation would reject the catalogue.
+          if [ -z "$PUBKEY" ]; then
+            echo "::error::BISCUIT_UPDATE_PUBKEY (Repository-Variable) fehlt."
+            exit 1
+          fi
+          printf '%s' "$PUBKEY" | base64 -d > /tmp/pub.raw
+          # Rebuild DER SPKI from the raw key: fixed 12-byte Ed25519 prefix.
+          printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' > /tmp/pub.der
+          cat /tmp/pub.raw >> /tmp/pub.der
+          openssl pkeyutl -verify -pubin -inkey /tmp/pub.der -keyform DER \
+            -rawin -in dist/catalogue.json -sigfile dist/catalogue.json.sig
+          echo "Signatur gegen den veröffentlichten Schlüssel bestätigt"
+
+      - name: Schlüssel entfernen
+        if: always()
+        run: rm -rf secrets
+
+      - name: Zusammenfassung
+        run: |
+          {
+            echo "## Katalog"
+            echo
+            python3 - <<'PY'
+          import json
+          catalogue = json.load(open("dist/catalogue.json"))
+
+          def images(nodes):
+              for node in nodes:
+                  if node.get("kind") == "image":
+                      yield node["image"]
+                  else:
+                      yield from images(node["category"]["children"])
+
+          print("| Abbild | Version | Herkunft der Prüfsumme |")
+          print("|---|---|---|")
+          for image in images(catalogue["entries"]):
+              strength = {
+                  "publisher_signature": "GPG-Signatur geprüft",
+                  "publisher_checksum": "Prüfsumme über TLS",
+                  "none": "**keine**",
+              }[image["provenance"]["strength"]]
+              print(f"| {image['name']} | {image.get('version','–')} | {strength} |")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Seite vorbereiten
+        run: |
+          mkdir -p site
+          cp dist/catalogue.json dist/catalogue.json.sig site/
+          # A tiny index so the URL is not a bare 404 for anyone who opens it.
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Biscuit — Abbild-Katalog</title>
+          <style>body{font:16px/1.5 system-ui;margin:3rem auto;max-width:40rem;padding:0 1rem}</style>
+          <h1>Biscuit — Abbild-Katalog</h1>
+          <p>Maschinenlesbarer Katalog der Abbilder, die Biscuit zum Download anbietet.</p>
+          <ul>
+            <li><a href="catalogue.json">catalogue.json</a></li>
+            <li><a href="catalogue.json.sig">catalogue.json.sig</a> — Ed25519, abgetrennt</li>
+          </ul>
+          <p>Jeder Eintrag nennt, woher seine Prüfsumme stammt und ob dabei eine
+             Signatur des Herausgebers geprüft wurde. Der Katalog selbst ist mit
+             dem Release-Schlüssel des Projekts signiert; Biscuit verwendet ihn
+             nur, wenn diese Signatur stimmt.</p>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publish:
+    name: Veröffentlichen
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

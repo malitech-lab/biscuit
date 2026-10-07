@@ -1,0 +1,12 @@
+.build/
+.swiftpm/
+dist/
+vendor/
+*.xcodeproj
+.DS_Store
+Package.resolved
+*.dmg
+*.zip
+secrets/
+Resources/AppIcon.icns
+!Resources/AppIcon-source.png

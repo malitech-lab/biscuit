@@ -1,0 +1,189 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version ohne v-Präfix, z. B. 1.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Bauen, signieren, veröffentlichen
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # bundle.sh derives the build number from the history
+
+      - name: Version bestimmen
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # Fail early rather than publishing an artefact the updater's semantic
+          # version comparison cannot order.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::'$VERSION' ist keine gültige Version (erwartet MAJOR.MINOR.PATCH[-vorab])"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Abhängigkeiten
+        run: brew install openssl@3 wimlib
+
+      - name: Update-Schlüssel prüfen
+        env:
+          PUBKEY: ${{ vars.BISCUIT_UPDATE_PUBKEY }}
+          PRIVKEY: ${{ secrets.BISCUIT_RELEASE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$PUBKEY" ] || [ -z "$PRIVKEY" ]; then
+            echo "::error::BISCUIT_UPDATE_PUBKEY (Variable) und BISCUIT_RELEASE_PRIVATE_KEY (Secret) müssen gesetzt sein."
+            echo "Erzeuge ein Schlüsselpaar mit Scripts/keygen.sh und hinterlege beide Teile."
+            exit 1
+          fi
+          BYTES=$(printf '%s' "$PUBKEY" | base64 -d | wc -c | tr -d ' ')
+          if [ "$BYTES" != "32" ]; then
+            echo "::error::BISCUIT_UPDATE_PUBKEY hat $BYTES statt 32 Bytes"
+            exit 1
+          fi
+
+      - name: Tests
+        run: swift test --parallel
+
+      - name: Signaturschlüssel ablegen
+        env:
+          PRIVKEY: ${{ secrets.BISCUIT_RELEASE_PRIVATE_KEY }}
+        run: |
+          mkdir -p secrets
+          chmod 700 secrets
+          printf '%s' "$PRIVKEY" > secrets/biscuit-release.key
+          chmod 600 secrets/biscuit-release.key
+          # Confirm it is a usable Ed25519 key before building anything.
+          /opt/homebrew/opt/openssl@3/bin/openssl pkey \
+            -in secrets/biscuit-release.key -noout
+          echo "Schlüssel akzeptiert"
+
+      - name: App bauen
+        env:
+          BISCUIT_UPDATE_PUBKEY: ${{ vars.BISCUIT_UPDATE_PUBKEY }}
+          BISCUIT_UPDATE_REPO: ${{ github.repository }}
+        run: |
+          Scripts/bundle.sh \
+            --release \
+            --version "${{ steps.version.outputs.version }}" \
+            --build "${{ github.run_number }}" \
+            --vendor-wimlib
+
+      - name: Archiv packen und signieren
+        run: |
+          Scripts/package-release.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --key secrets/biscuit-release.key
+
+      - name: Signatur unabhängig gegenprüfen
+        env:
+          PUBKEY: ${{ vars.BISCUIT_UPDATE_PUBKEY }}
+        run: |
+          # Verifies the published signature against the public key exactly as
+          # the shipped app will, using only the public half. A mismatch here
+          # means every installation would reject the update.
+          VERSION="${{ steps.version.outputs.version }}"
+          printf '%s' "$PUBKEY" | base64 -d > /tmp/pub.raw
+          # Rebuild DER SPKI from the raw key: fixed 12-byte Ed25519 prefix.
+          printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' > /tmp/pub.der
+          cat /tmp/pub.raw >> /tmp/pub.der
+          /opt/homebrew/opt/openssl@3/bin/openssl pkeyutl -verify \
+            -pubin -inkey /tmp/pub.der -keyform DER \
+            -rawin -in "dist/Biscuit-$VERSION.zip" \
+            -sigfile "dist/Biscuit-$VERSION.zip.sig"
+          echo "Signatur gegen den veröffentlichten Schlüssel bestätigt"
+
+      - name: Schlüssel entfernen
+        if: always()
+        run: rm -rf secrets
+
+      - name: Homebrew-Cask aktualisieren
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA=$(shasum -a 256 "dist/Biscuit-$VERSION.zip" | awk '{print $1}')
+          mkdir -p dist/Casks
+          sed \
+            -e "s|@VERSION@|$VERSION|g" \
+            -e "s|@SHA256@|$SHA|g" \
+            -e "s|@REPO@|${{ github.repository }}|g" \
+            Packaging/biscuit-usb.rb.in > dist/Casks/biscuit-usb.rb
+          cat dist/Casks/biscuit-usb.rb
+
+      - name: Release-Notizen zusammenstellen
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA=$(shasum -a 256 "dist/Biscuit-$VERSION.zip" | awk '{print $1}')
+          {
+            echo "## Installation"
+            echo
+            echo "**Empfohlen — ohne Gatekeeper-Warnung:**"
+            echo
+            echo '```sh'
+            echo "brew install --no-quarantine --cask ${{ github.repository_owner }}/tap/biscuit-usb"
+            echo '```'
+            echo
+            echo "**Oder aus dem Quellcode bauen:**"
+            echo
+            echo '```sh'
+            echo "git clone https://github.com/${{ github.repository }}.git"
+            echo "cd $(basename ${{ github.repository }}) && Scripts/install.sh"
+            echo '```'
+            echo
+            echo "**Oder das ZIP hier herunterladen.** Diese App ist nicht von Apple"
+            echo "notarisiert — das kostet 99 €/Jahr. Nach einem Browser-Download muss"
+            echo "das Quarantäne-Attribut daher einmal entfernt werden:"
+            echo
+            echo '```sh'
+            echo "xattr -dr com.apple.quarantine /Applications/Biscuit.app"
+            echo '```'
+            echo
+            echo "## Integrität prüfen"
+            echo
+            echo "SHA-256 des Archivs:"
+            echo
+            echo '```'
+            echo "$SHA"
+            echo '```'
+            echo
+            echo "Das Archiv ist zusätzlich mit dem Ed25519-Release-Schlüssel des"
+            echo "Projekts signiert (\`.zip.sig\`). Die App verifiziert diese Signatur"
+            echo "bei jedem automatischen Update und verweigert alles andere."
+            echo
+            echo "## Änderungen"
+            echo
+            git log --pretty=format:'- %s' "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)..HEAD" 2>/dev/null \
+              || git log --pretty=format:'- %s' -20
+          } > dist/RELEASE_NOTES.md
+          cat dist/RELEASE_NOTES.md
+
+      - name: Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Biscuit ${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          files: |
+            dist/Biscuit-${{ steps.version.outputs.version }}.zip
+            dist/Biscuit-${{ steps.version.outputs.version }}.zip.sig
+            dist/Biscuit-${{ steps.version.outputs.version }}.zip.sha256
+            dist/Casks/biscuit-usb.rb

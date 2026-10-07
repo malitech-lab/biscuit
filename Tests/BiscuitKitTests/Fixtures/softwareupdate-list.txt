@@ -1,0 +1,18 @@
+Finding available software
+Software Update found the following full installers:
+* Title: macOS 27 Golden Gate, Version: 27.0.1, Size: 17955378KiB, Build: 26A434, Deferred: NO
+* Title: macOS 27 Golden Gate, Version: 27.0, Size: 17969056KiB, Build: 26A428, Deferred: NO
+* Title: macOS Tahoe, Version: 26.7.1, Size: 17950170KiB, Build: 25G241, Deferred: NO
+* Title: macOS Tahoe, Version: 26.7, Size: 17951133KiB, Build: 25G229, Deferred: NO
+* Title: macOS Tahoe, Version: 26.6.2, Size: 17953734KiB, Build: 25G83, Deferred: NO
+* Title: macOS Tahoe, Version: 26.6.1, Size: 17938060KiB, Build: 25G76, Deferred: NO
+* Title: macOS Tahoe, Version: 26.6, Size: 17942836KiB, Build: 25G72, Deferred: NO
+* Title: macOS Tahoe, Version: 26.5.2, Size: 17875271KiB, Build: 25F84, Deferred: NO
+* Title: macOS Sequoia, Version: 15.8.1, Size: 15297386KiB, Build: 24H32, Deferred: NO
+* Title: macOS Sequoia, Version: 15.8, Size: 15296950KiB, Build: 24H23, Deferred: NO
+* Title: macOS Sequoia, Version: 15.7.9, Size: 15289021KiB, Build: 24G830, Deferred: NO
+* Title: macOS Sequoia, Version: 15.7.8, Size: 15288760KiB, Build: 24G824, Deferred: NO
+* Title: macOS Sequoia, Version: 15.7.7, Size: 15288576KiB, Build: 24G720, Deferred: NO
+* Title: macOS Sonoma, Version: 14.8.9, Size: 13334756KiB, Build: 23J631, Deferred: NO
+* Title: macOS Sonoma, Version: 14.8.8, Size: 13333989KiB, Build: 23J620, Deferred: NO
+* Title: macOS Sonoma, Version: 14.8.7, Size: 13336094KiB, Build: 23J520, Deferred: NO

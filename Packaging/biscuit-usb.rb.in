@@ -1,0 +1,62 @@
+# Homebrew cask template. The release workflow substitutes the placeholders and
+# attaches the result to the GitHub release; copy it into your tap repository at
+# Casks/biscuit-usb.rb.
+#
+# Install with:
+#
+#   brew install --no-quarantine --cask malitech-lab/tap/biscuit-usb
+#
+# The token is `biscuit-usb`, not `biscuit`: Homebrew's core tap already has a
+# cask named `biscuit` for an unrelated commercial app ("Biscuit — Browser to
+# organise apps", eatbiscuit.com). Taps are namespaced, so `biscuit` would work
+# here too — but a user typing `brew install --cask biscuit` would get the other
+# program, so the distinct token avoids a trap rather than relying on people
+# spelling the tap out.
+#
+# `--no-quarantine` is required and deliberate. Biscuit is not notarised,
+# because notarisation requires a paid Apple Developer membership. Homebrew would
+# otherwise apply the quarantine attribute itself and Gatekeeper would refuse to
+# launch the app. Authenticity is instead established by the SHA-256 below, which
+# Homebrew verifies before installing, and by the Ed25519 signature the app
+# checks on every self-update.
+
+cask "biscuit-usb" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/@REPO@/releases/download/v#{version}/Biscuit-#{version}.zip",
+      verified: "github.com/@REPO@/"
+  name "Biscuit"
+  desc "Startfähige USB-Medien für Windows, Linux und macOS erstellen"
+  homepage "https://github.com/@REPO@"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  # macOS 14 is the floor: the app relies on Observation and on Swift 6
+  # concurrency checking.
+  depends_on macos: ">= :sonoma"
+
+  # Only needed for Windows ISOs whose install.wim exceeds FAT32's 4 GB limit.
+  # Everything else works without it, so this is not a hard dependency.
+  depends_on formula: "wimlib"
+
+  app "Biscuit.app"
+
+  zap trash: [
+    "~/Library/Application Support/Biscuit",
+    "~/Library/Preferences/dev.biscuit.Biscuit.plist",
+    "~/Library/Saved Application State/dev.biscuit.Biscuit.savedState",
+  ]
+
+  caveats <<~EOS
+    Biscuit ist nicht von Apple notarisiert. Die Installation per Homebrew mit
+    --no-quarantine umgeht die Gatekeeper-Sperre auf dem dafür vorgesehenen Weg.
+
+    Beim ersten Schreibvorgang pro Sitzung fragt Biscuit Administrator-Rechte
+    ab. Es wird kein dauerhafter Hintergrunddienst installiert; der privilegierte
+    Helfer läuft nur, solange ein Vorgang aktiv ist.
+  EOS
+end

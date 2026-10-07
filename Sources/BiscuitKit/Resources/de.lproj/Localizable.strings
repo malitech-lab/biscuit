@@ -1,0 +1,547 @@
+/* Biscuit — deutsche Zeichenkettentabelle.
+ *
+ * Schlüssel sind semantische Bezeichner aus StringKey.swift. Diagnosetexte
+ * stehen bewusst NICHT hier: errno-Meldungen, Werkzeugausgaben und
+ * Protokollgründe bleiben englisch und unlokalisiert, damit sie in
+ * Fehlerberichten vergleichbar und suchbar bleiben.
+ *
+ * Platzhalter müssen exakt erhalten bleiben. Wo eine Übersetzung eine andere
+ * Wortstellung braucht, werden positionsgebundene Formen wie `%1$@` verwendet.
+ */
+
+/* MARK: - Anschlüsse */
+"bus.usb" = "USB";
+"bus.thunderbolt" = "Thunderbolt";
+"bus.sd_card" = "SD-Karte";
+"bus.firewire" = "FireWire";
+"bus.internal" = "Intern";
+"bus.virtual" = "Virtuell";
+"bus.unknown" = "Unbekannt";
+
+/* MARK: - Abbildtypen */
+"payload.hybrid_iso" = "Bootfähiges ISO (Linux/BSD)";
+"payload.windows_installer" = "Windows-Installations-ISO";
+"payload.raw_disk_image" = "Rohes Datenträger-Abbild";
+"payload.macos_installer" = "macOS-Installer";
+"payload.non_bootable_iso" = "ISO ohne Boot-Sektor";
+
+/* MARK: - Schreibmethoden */
+"strategy.raw_image" = "Abbild direkt schreiben";
+"strategy.raw_image.detail" = "Kopiert das Abbild Byte für Byte. Richtig für Linux-, BSD- und Raspberry-Pi-Abbilder.";
+"strategy.windows_fat32" = "Windows (FAT32, WIM-Split)";
+"strategy.windows_fat32.detail" = "Formatiert als FAT32 und kopiert die Dateien. install.wim wird automatisch in .swm-Teile unter 4 GB zerlegt — Windows Setup liest diese nativ. Bootet auf jedem UEFI-System.";
+"strategy.macos_installer" = "macOS-Installationsmedium";
+"strategy.macos_installer.detail" = "Nutzt Apples createinstallmedia aus dem Installationsprogramm.";
+"strategy.erase_only" = "Nur löschen und formatieren";
+"strategy.erase_only.detail" = "Löscht den Datenträger und legt eine einzelne Partition an.";
+
+/* MARK: - Partitionsschemata und Dateisysteme */
+"scheme.gpt" = "GPT (UEFI, empfohlen)";
+"scheme.mbr" = "MBR (Legacy-BIOS)";
+"filesystem.fat32" = "FAT32 (max. 4 GB pro Datei, universell)";
+"filesystem.exfat" = "exFAT (große Dateien, Windows + macOS)";
+"filesystem.hfs_plus" = "Mac OS Extended (journaled)";
+"filesystem.apfs" = "APFS (nur macOS)";
+
+/* MARK: - Phasen */
+"phase.preparing" = "Vorbereiten";
+"phase.unmounting" = "Aushängen";
+"phase.partitioning" = "Partitionieren";
+"phase.mounting" = "Einhängen";
+"phase.writing" = "Abbild schreiben";
+"phase.copying" = "Dateien kopieren";
+"phase.splitting_wim" = "install.wim zerlegen";
+"phase.flushing" = "Puffer leeren";
+"phase.verifying" = "Verifizieren";
+"phase.finalising" = "Abschließen";
+"phase.done" = "Fertig";
+
+/* MARK: - Prüfsummen */
+"checksum.sha256" = "SHA-256";
+"checksum.sha512" = "SHA-512";
+"checksum.sha1" = "SHA-1 (unsicher)";
+"checksum.md5" = "MD5 (unsicher)";
+
+/* MARK: - Fehler: Rechte und Helfer */
+"error.cancelled" = "Vorgang abgebrochen.";
+"error.privilege_denied" = "Administrator-Rechte wurden nicht erteilt.";
+"error.privilege_denied.remedy" = "Biscuit braucht einmal pro Sitzung Administrator-Rechte, um direkt auf den USB-Datenträger zu schreiben.";
+"error.helper_unavailable" = "Der privilegierte Helfer konnte nicht gestartet werden.";
+"error.helper_unavailable.remedy" = "Starte Biscuit neu. Bleibt der Fehler, prüfe, ob die App vollständig entpackt in /Programme liegt.";
+"error.helper_protocol" = "Interner Kommunikationsfehler mit dem Helfer.";
+"error.helper_protocol.remedy" = "Starte Biscuit neu.";
+"error.helper_rejected" = "Der Helfer hat die Verbindung abgelehnt.";
+"error.helper_rejected.remedy" = "Starte Biscuit neu. Bleibt der Fehler bestehen, installiere die App neu.";
+"error.helper_closed_without_reply" = "Der Helfer hat die Verbindung ohne Antwort geschlossen. Prüfe das Helfer-Protokoll.";
+"error.helper_connection_lost" = "Die Verbindung zum Helfer ist unerwartet abgebrochen.";
+"error.helper_connection_lost.remedy" = "Der Datenträger ist jetzt möglicherweise unvollständig beschrieben. Starte den Vorgang neu.";
+"error.helper_world_writable" = "Der Helfer ist für andere Benutzer beschreibbar.";
+"error.helper_world_writable.remedy" = "Das ist ein Sicherheitsrisiko. Installiere Biscuit neu nach /Programme.";
+"error.helper_busy" = "Es läuft bereits ein Vorgang.";
+"error.helper_busy.remedy" = "Warte, bis der laufende Vorgang abgeschlossen ist.";
+
+/* MARK: - Fehler: Datenträger */
+"error.device_not_eligible" = "%@ ist kein zulässiges Ziel.";
+"error.device_not_eligible.remedy" = "Biscuit schreibt ausschließlich auf wechselbare, externe Datenträger.";
+"error.device_is_system_disk" = "%@ gehört zum laufenden System.";
+"error.device_is_system_disk.remedy" = "Biscuit schreibt niemals auf den Systemdatenträger.";
+"error.device_too_small" = "Der Datenträger ist zu klein.";
+"error.device_too_small.remedy" = "Benötigt: %1$@. Verfügbar: %2$@.";
+"error.device_changed" = "Der Datenträger hat sich geändert.";
+"error.device_changed.remedy" = "Es ist jetzt ein anderes Gerät unter %@ angeschlossen. Wähle das Ziel neu aus.";
+"error.device_busy" = "Der Datenträger konnte nicht ausgehängt werden.";
+"error.device_busy.remedy" = "Schließe Programme, die auf den Datenträger zugreifen (Finder-Fenster, Spotlight-Indizierung), und versuche es erneut.";
+"error.device_info_unavailable" = "Datenträger-Informationen sind nicht abrufbar.";
+"error.device_list_unreadable" = "Die Antwort von diskutil konnte nicht gelesen werden.";
+"error.device_open_failed" = "Der Datenträger konnte nicht zum Schreiben geöffnet werden.";
+"error.device_open_failed.busy_remedy" = "Der Datenträger ist noch eingehängt. Wirf ihn im Finder aus und versuche es erneut.";
+"error.device_open_failed.remedy" = "Prüfe, ob der Datenträger schreibgeschützt ist.";
+"error.device_access_denied" = "Der Zugriff auf den Geräteknoten wurde verweigert.";
+
+/* MARK: - Fehler: Schreiben und Verifizieren */
+"error.write_failed" = "Schreiben auf den Datenträger fehlgeschlagen.";
+"error.write_failed.remedy" = "Stecke den Datenträger ab und wieder an, dann erneut versuchen. Bei wiederholtem Fehler ist er vermutlich defekt.";
+"error.verification_failed" = "Verifikation fehlgeschlagen bei Byte %llu.";
+"error.verification_failed.remedy" = "Die Daten auf dem Datenträger stimmen nicht mit dem Abbild überein. Der Datenträger ist vermutlich defekt oder eine Fälschung.";
+"error.device_shorter_than_image" = "Der Datenträger ist kürzer als das Abbild.";
+"error.device_shorter_than_image.remedy" = "Der Datenträger gibt eine größere Kapazität an, als er tatsächlich hat — ein typisches Merkmal gefälschter Flash-Speicher.";
+"error.no_space_left" = "Kein Platz mehr auf dem Datenträger.";
+"error.no_space_left.remedy" = "Verwende einen größeren Datenträger.";
+"error.file_too_large_for_filesystem" = "%@ ist zu groß für das Zieldateisystem.";
+"error.file_too_large_for_filesystem.remedy" = "FAT32 erlaubt maximal 4 GB pro Datei.";
+"error.partitioning_failed" = "Partitionieren fehlgeschlagen.";
+"error.partitioning_failed.remedy" = "Stecke den Datenträger ab und wieder an. Lässt er sich auch im Festplattendienstprogramm nicht löschen, ist er vermutlich defekt oder schreibgeschützt.";
+"error.mount_failed" = "Das Abbild konnte nicht eingehängt werden.";
+"error.mount_failed.remedy" = "Die Datei ist womöglich beschädigt oder kein von macOS lesbares Abbild.";
+"error.mount_not_appearing" = "Die neue Partition wurde nicht eingehängt.";
+"error.mount_not_appearing.remedy" = "Stecke den Datenträger ab und wieder an, dann erneut versuchen.";
+"error.image_unmountable" = "Das Abbild enthält kein lesbares Dateisystem.";
+"error.image_no_filesystem" = "Das ISO enthält kein lesbares Dateisystem.";
+"error.image_detached" = "Das eingehängte Abbild ist nicht mehr erreichbar.";
+
+/* MARK: - Fehler: Kopieren */
+"error.copy_read_failed" = "Lesefehler in %@.";
+"error.copy_write_failed" = "Schreibfehler bei %@.";
+"error.copy_source_unreadable" = "Datei nicht lesbar: %@";
+"error.copy_target_unwritable" = "Datei nicht schreibbar: %@";
+"error.copy_name_too_long.remedy" = "Der Dateiname ist für das Zieldateisystem zu lang.";
+"error.copy_source_unlistable" = "Das Quellverzeichnis konnte nicht gelesen werden.";
+"error.copy_unexpected_path" = "Unerwarteter Pfad beim Einlesen der Quelle.";
+
+/* MARK: - Fehler: Quellen */
+"error.source_missing" = "Die Datei existiert nicht.";
+"error.source_unreadable" = "Die Datei ist nicht lesbar.";
+"error.source_unreadable.remedy" = "Prüfe die Zugriffsrechte oder kopiere die Datei in deinen Benutzerordner.";
+"error.source_gone.remedy" = "Wähle das Abbild erneut aus.";
+"error.source_too_small" = "Die Datei ist zu klein, um ein startfähiges Abbild zu sein.";
+"error.source_empty" = "Das Abbild ist leer.";
+"error.source_not_regular_file" = "Die Quelle ist keine reguläre Datei.";
+"error.source_open_denied" = "Das Abbild konnte nicht geöffnet werden.";
+"error.source_open_denied.remedy" = "macOS verweigert den Zugriff. Wähle die Datei erneut über „Datei auswählen …“ aus, damit der Zugriff erteilt wird.";
+"error.source_path_not_allowed" = "Der Helfer darf diesen Pfad nicht öffnen.";
+"error.source_path_not_allowed.remedy" = "Nur eingehängte Volumes und Programme sind zulässig.";
+"error.source_path_invalid" = "Ungültiger Pfad.";
+"error.not_a_macos_installer" = "Das ist kein macOS-Installationsprogramm.";
+"error.not_a_macos_installer.remedy" = "Wähle ein Programm wie „Install macOS Sequoia.app“ aus dem Programme-Ordner.";
+"error.installer_outside_applications" = "Das Installationsprogramm muss in /Programme liegen.";
+"error.installer_outside_applications.remedy" = "Verschiebe „%@“ nach /Programme und wähle es erneut aus. Aus dem Download- oder Dokumente-Ordner darf der privilegierte Helfer aus Datenschutzgründen nicht lesen.";
+
+/* MARK: - Fehler: Windows-Medien */
+"error.wim_tool_missing" = "wimlib wurde nicht gefunden.";
+"error.wim_tool_missing.remedy" = "install.wim ist größer als 4 GB und muss zerlegt werden. Installiere wimlib mit „brew install wimlib“ und starte den Vorgang erneut.";
+"error.wim_split_failed" = "Das Zerlegen von install.wim ist fehlgeschlagen.";
+"error.wim_split_failed.remedy" = "Prüfe, ob genug Platz auf dem Datenträger frei ist und ob das ISO vollständig heruntergeladen wurde.";
+"error.wim_convert_failed" = "Die Konvertierung von %@ ist fehlgeschlagen.";
+"error.wim_no_parts_produced" = "Es wurden keine .swm-Teile erzeugt.";
+"error.media_incomplete" = "Das Medium ist unvollständig und würde nicht starten.";
+"error.media_incomplete.remedy" = "Fehlende Boot-Dateien: %@. Das ISO ist womöglich beschädigt — lade es erneut herunter und prüfe die Prüfsumme.";
+"error.install_image_missing" = "sources/install.* fehlt auf dem Medium.";
+"error.install_image_missing.remedy" = "Ohne das Installationsabbild kann Windows nicht installiert werden.";
+"error.createinstallmedia_failed" = "createinstallmedia ist fehlgeschlagen.";
+"error.createinstallmedia_missing" = "createinstallmedia wurde nicht gefunden.";
+"error.createinstallmedia_missing.remedy" = "Wähle ein vollständiges macOS-Installationsprogramm aus dem Programme-Ordner.";
+"error.installer_too_small.remedy" = "Der Datenträger ist zu klein. Apple verlangt mindestens 16 GB.";
+"error.installer_damaged.remedy" = "Das Installationsprogramm ist unvollständig. Lade es erneut über die Systemeinstellungen oder den App Store.";
+"error.installer_busy.remedy" = "Ein anderer Prozess greift auf den Datenträger zu. Schließe Finder-Fenster und versuche es erneut.";
+
+/* MARK: - Fehler: Updates */
+"error.update_disabled" = "Updates sind in diesem Build deaktiviert.";
+"error.update_disabled.remedy" = "Es ist kein Release-Signaturschlüssel eingebettet. Lade neue Versionen manuell von GitHub.";
+"error.update_no_key" = "Es ist kein Update-Schlüssel eingebettet.";
+"error.update_no_key.remedy" = "Dieser Build kann keine Updates installieren. Lade neue Versionen manuell.";
+"error.update_key_invalid" = "Der eingebettete Update-Schlüssel ist ungültig.";
+"error.update_key_not_ed25519" = "Der eingebettete Update-Schlüssel ist kein gültiger Ed25519-Schlüssel.";
+"error.signature_wrong_length" = "Die Signatur hat die falsche Länge.";
+"error.signature_invalid" = "Die Signatur des Updates ist ungültig.";
+"error.signature_invalid.remedy" = "Das Archiv wurde verändert oder stammt nicht vom Biscuit-Projekt. Die Installation wurde abgebrochen.";
+"error.signature_missing" = "Zum Archiv fehlt die Signatur.";
+"error.signature_missing.remedy" = "Unsignierte Releases werden nicht installiert. Lade die Version manuell von GitHub, wenn du ihr vertraust.";
+"error.archive_unreadable" = "Das heruntergeladene Archiv ist nicht lesbar.";
+"error.archive_no_app" = "Im Archiv ist keine .app enthalten.";
+"error.archive_extract_failed" = "Das Archiv konnte nicht entpackt werden.";
+"error.update_no_executable" = "Das Update enthält keine ausführbare App.";
+"error.update_no_helper" = "Das Update enthält keinen Helfer.";
+"error.update_info_plist_unreadable" = "Die Info.plist des Updates ist unlesbar.";
+"error.update_version_mismatch" = "Versionsangaben stimmen nicht überein.";
+"error.update_not_newer" = "Das Update ist nicht neuer als die laufende Version.";
+"error.update_manual_only" = "Automatische Installation ist nur für .app-Bundles möglich.";
+"error.update_manual_only.remedy" = "Kopiere die neue Version manuell aus %@.";
+"error.update_bad_repository" = "Ungültige Repository-Angabe.";
+"error.update_draft_release" = "Das neueste Release ist ein Entwurf oder eine Vorabversion.";
+"error.update_no_archive" = "Das Release enthält kein .zip-Archiv.";
+"error.download_failed" = "Download fehlgeschlagen.";
+"error.download_http_status" = "GitHub antwortete mit %d.";
+"error.download_retry.remedy" = "Versuche es später erneut.";
+"error.download_no_release.remedy" = "Für %@ existiert kein Release.";
+"error.download_no_http_response" = "Keine HTTP-Antwort von GitHub.";
+
+/* MARK: - Fehler: allgemein */
+"error.internal" = "Interner Fehler.";
+"error.posix_operation_failed" = "%@ fehlgeschlagen.";
+"error.allocation_failed" = "Speicher konnte nicht reserviert werden.";
+"error.file_size_unavailable" = "Die Dateigröße konnte nicht ermittelt werden.";
+"error.disk_arbitration_unavailable" = "Die DiskArbitration-Sitzung konnte nicht erstellt werden.";
+"error.disk_arbitration_unavailable.remedy" = "Die Geräteliste wird dann nur manuell aktualisiert.";
+"error.token_write_failed" = "Das Sitzungs-Token konnte nicht geschrieben werden.";
+
+/* MARK: - Erkennungshinweise */
+"note.hybrid_mbr" = "Hybrider MBR-Bootsektor vorhanden.";
+"note.gpt_header" = "GPT-Partitionstabelle vorhanden.";
+"note.no_partition_table" = "Keine erkennbare Partitionstabelle — wird unverändert kopiert.";
+"note.filesystem_unreadable" = "Dateisystem nicht lesbar — der Inhalt konnte nicht geprüft werden.";
+"note.no_boot_sector" = "Kein Bootsektor und kein EFI-Loader gefunden.";
+"note.uefi_only" = "Kein MBR-Bootsektor; startet nur im UEFI-Modus.";
+"note.fits_fat32" = "Alle Dateien passen in FAT32 — kein Zerlegen nötig.";
+"note.exceeds_fat32" = "Über der FAT32-Grenze von 4 GB: %@.";
+"note.will_split_wim" = "Wird in install.swm-Teile zerlegt — Windows Setup liest diese nativ.";
+"note.will_convert_esd" = "Enthält .esd-Dateien; diese werden vor dem Zerlegen nach .wim konvertiert. Das dauert deutlich länger.";
+"note.windows_image_without_boot_files" = "Windows-Abbild gefunden, aber keine Boot-Dateien.";
+"note.content_summary" = "%1$d Dateien, %2$@ entpackt.";
+"note.installer_version" = "Installer-Version %@.";
+"note.uses_createinstallmedia" = "Apples createinstallmedia wird verwendet.";
+
+/* MARK: - Fortschrittsdetail */
+"detail.validating_target" = "Ziel prüfen";
+"detail.unmounting" = "Volumes auf %@ aushängen";
+"detail.wiping_signatures" = "Alte Signaturen löschen";
+"detail.formatting" = "Formatieren als %@";
+"detail.waiting_for_mount" = "Warten auf das Einhängen";
+"detail.writing_to" = "Schreibe nach %@";
+"detail.verifying" = "Daten zurücklesen und vergleichen";
+"detail.flushing" = "Schreibpuffer leeren";
+"detail.copying_files" = "%d Dateien kopieren";
+"detail.splitting_wim" = "install.wim zerlegen";
+"detail.converting_esd" = "ESD nach WIM konvertieren";
+"detail.createinstallmedia_running" = "createinstallmedia läuft — das dauert 20–45 Minuten";
+"detail.finished" = "Fertig";
+
+/* MARK: - Warnungen */
+"warning.no_byte_verification_file_copy" = "Bei Datei-basierten Medien ist keine Byte-Verifikation möglich; stattdessen wurde die Vollständigkeit der Boot-Dateien geprüft.";
+"warning.no_byte_verification_installer" = "createinstallmedia prüft das Ergebnis selbst; eine zusätzliche Byte-Verifikation ist nicht möglich.";
+"warning.cancelled_media_incomplete" = "Abgebrochen. Der Datenträger ist jetzt in einem unvollständigen Zustand.";
+"warning.eject_failed" = "Auswerfen fehlgeschlagen. Wirf den Datenträger im Finder aus, bevor du ihn abziehst.";
+"notice.ejected" = "Datenträger ausgeworfen — kann jetzt abgezogen werden.";
+
+/* MARK: - GUI: Rahmen und Aktionen */
+"ui.app_tagline" = "Startfähige USB-Medien erstellen";
+"ui.action.refresh_devices" = "Geräteliste aktualisieren";
+"ui.action.refresh_devices_shortcut" = "Geräteliste aktualisieren (⌘R)";
+"ui.action.copy_log" = "Protokoll kopieren";
+"ui.action.check_for_updates" = "Nach Updates suchen …";
+"ui.action.cancel" = "Abbrechen";
+"ui.action.reset" = "Zurücksetzen";
+"ui.action.write" = "Schreiben …";
+"ui.action.erase" = "Löschen …";
+"ui.menu.disks" = "Datenträger";
+"ui.status.running" = "Vorgang läuft";
+"ui.status.cancelling" = "Abbruch läuft …";
+
+/* MARK: - GUI: Quelle */
+"ui.source.title" = "1 · Quelle";
+"ui.source.subtitle" = "ISO, IMG, DMG oder ein macOS-Installationsprogramm. Zum Löschen eines Datenträgers ist keine Quelle nötig.";
+"ui.source.analysing" = "Abbild wird analysiert …";
+"ui.source.drop_here" = "Abbild hierher ziehen";
+"ui.source.choose_file" = "Datei auswählen …";
+"ui.source.drop_accessibility" = "Abbild ablegen oder Datei auswählen";
+"ui.source.remove" = "Quelle entfernen";
+"ui.source.not_bootable" = "Aus diesem Abbild lässt sich kein startfähiges Medium erstellen.";
+"ui.source.wimlib_missing" = "wimlib fehlt — dieses ISO kann nicht verarbeitet werden.";
+"ui.source.wimlib_missing_detail" = "install.wim ist %@ groß und muss zerlegt werden. Behebung im Terminal: brew install wimlib";
+
+/* MARK: - GUI: Ziel */
+"ui.target.title" = "2 · Ziel";
+"ui.target.subtitle" = "Der gesamte Inhalt dieses Datenträgers wird gelöscht.";
+"ui.target.none_attached" = "Kein wechselbarer Datenträger angeschlossen";
+"ui.target.none_attached_hint" = "Stecke einen USB-Stick oder eine SD-Karte ein.";
+"ui.target.blocked_count" = "%d nicht verwendbare Datenträger";
+"ui.target.badge_too_small" = "zu klein";
+"ui.target.badge_very_large" = "sehr groß";
+"ui.target.blocked.system_disk" = "Systemdatenträger";
+"ui.target.blocked.read_only" = "schreibgeschützt";
+"ui.target.blocked.internal" = "intern verbaut";
+"ui.target.blocked.virtual" = "virtuelles Abbild";
+"ui.target.blocked.thunderbolt" = "Thunderbolt — nicht als wechselbar behandelt";
+"ui.target.blocked.no_media" = "kein Medium eingelegt";
+"ui.target.blocked.not_removable" = "nicht wechselbar";
+
+/* MARK: - GUI: Methode */
+"ui.options.title" = "3 · Methode";
+"ui.options.method" = "Schreibmethode";
+"ui.options.volume_name" = "Datenträgername";
+"ui.options.volume_name_raw_hint" = "Bei direktem Schreiben bringt das Abbild seinen eigenen Namen mit.";
+"ui.options.volume_name_adjusted" = "Wird übernommen als „%@“ — das Dateisystem erlaubt nur bestimmte Zeichen und Längen.";
+"ui.options.filesystem" = "Dateisystem";
+"ui.options.partition_scheme" = "Partitionsschema";
+"ui.options.verify" = "Nach dem Schreiben verifizieren";
+"ui.options.verify.raw_hint" = "Liest alles zurück und vergleicht Byte für Byte. Verdoppelt die Dauer, erkennt aber gefälschte und defekte Datenträger.";
+"ui.options.verify.file_copy_hint" = "Bei Datei-Kopien wird stattdessen die Vollständigkeit der Boot-Dateien geprüft.";
+"ui.options.verify.installer_hint" = "createinstallmedia prüft sein Ergebnis selbst.";
+"ui.options.verify.erase_hint" = "Beim Löschen nicht anwendbar.";
+"ui.options.eject" = "Datenträger am Ende auswerfen";
+
+/* MARK: - GUI: Hindernisse */
+"ui.blocker.select_target" = "Wähle einen Ziel-Datenträger.";
+"ui.blocker.select_source" = "Wähle ein Abbild aus.";
+"ui.blocker.system_disk" = "Der Systemdatenträger kann nicht verwendet werden.";
+"ui.blocker.read_only" = "Der Datenträger ist schreibgeschützt.";
+"ui.blocker.no_bootable_method" = "Für dieses Abbild gibt es keine startfähige Schreibmethode.";
+"ui.blocker.method_mismatch" = "Die gewählte Methode passt nicht zu diesem Abbild.";
+"ui.blocker.too_small" = "Der Datenträger ist zu klein: %1$@ benötigt, %2$@ verfügbar.";
+
+/* MARK: - GUI: Bestätigung */
+"ui.confirm.title_erase" = "Datenträger wirklich löschen?";
+"ui.confirm.title_write" = "Datenträger wirklich überschreiben?";
+"ui.confirm.irreversible" = "Das lässt sich nicht rückgängig machen.";
+"ui.confirm.section_target" = "ZIEL";
+"ui.confirm.section_operation" = "VORGANG";
+"ui.confirm.data_loss" = "Alle Daten auf diesem Datenträger werden unwiederbringlich gelöscht.";
+"ui.confirm.field.device" = "Gerät";
+"ui.confirm.field.capacity" = "Kapazität";
+"ui.confirm.field.connection" = "Anschluss";
+"ui.confirm.field.identifier" = "Kennung";
+"ui.confirm.field.volumes" = "Volumes";
+"ui.confirm.field.method" = "Methode";
+"ui.confirm.field.source" = "Quelle";
+"ui.confirm.field.size" = "Größe";
+"ui.confirm.field.filesystem" = "Dateisystem";
+"ui.confirm.field.scheme" = "Schema";
+"ui.confirm.field.name" = "Name";
+"ui.confirm.field.verification" = "Verifikation";
+"ui.confirm.verification.byte_for_byte" = "Byte für Byte";
+"ui.confirm.verification.not_applicable" = "nicht anwendbar";
+
+/* MARK: - GUI: Fortschritt */
+"ui.progress.title" = "Fortschritt";
+"ui.progress.authorisation_title" = "Autorisierung";
+"ui.progress.awaiting_admin" = "Warte auf Administrator-Rechte";
+"ui.progress.awaiting_admin_detail" = "Bestätige die Systemabfrage mit Touch ID oder deinem Passwort. Biscuit fragt das einmal pro Sitzung.";
+"ui.progress.cancelling" = "Abbruch wird verarbeitet …";
+"ui.progress.cancelling_detail" = "Der laufende Schreibvorgang wird an der nächsten sicheren Stelle gestoppt. Der Datenträger bleibt danach unvollständig und muss neu beschrieben werden.";
+"ui.progress.do_not_unplug" = "Datenträger nicht abziehen";
+"ui.progress.do_not_unplug_detail" = "%1$@ (%2$@) wird gerade beschrieben.";
+"ui.progress.stat.written" = "Geschrieben";
+"ui.progress.stat.speed" = "Geschwindigkeit";
+"ui.progress.stat.remaining" = "Restzeit";
+"ui.progress.step_accessibility" = "Schritt %1$d von %2$d: %3$@";
+
+/* MARK: - GUI: Ergebnis */
+"ui.outcome.title_done" = "Fertig";
+"ui.outcome.title_failed" = "Fehlgeschlagen";
+"ui.outcome.erased" = "Der Datenträger wurde gelöscht.";
+"ui.outcome.macos_ready" = "Das macOS-Installationsmedium ist fertig.";
+"ui.outcome.windows_ready" = "Das Windows-Installationsmedium ist fertig.";
+"ui.outcome.image_written" = "Das Abbild wurde geschrieben.";
+"ui.outcome.duration" = "Dauer %@";
+"ui.outcome.transferred" = "%@ übertragen";
+"ui.outcome.verified" = "Byte für Byte verifiziert";
+"ui.outcome.technical_details" = "Technische Details";
+"ui.outcome.copy_brew_command" = "brew-Befehl kopieren";
+"ui.outcome.windows_boot_hint" = "Zum Starten den UEFI-Eintrag des Datenträgers im Boot-Menü wählen. Ein Legacy-/CSM-Start funktioniert mit diesem Layout nicht. Bei Windows 11 können auf älterer Hardware zusätzlich TPM- und Secure-Boot-Prüfungen greifen.";
+
+/* MARK: - GUI: Protokoll */
+"ui.log.title" = "Protokoll";
+"ui.log.filter.all" = "Alles";
+"ui.log.filter.info" = "Info";
+"ui.log.filter.warnings" = "Warnungen";
+"ui.log.filter.errors" = "Fehler";
+"ui.log.follow" = "Mitlaufen";
+"ui.log.copy_tooltip" = "Vollständiges Protokoll in die Zwischenablage kopieren";
+
+/* MARK: - GUI: Updates */
+"ui.update.available_title" = "Neue Version verfügbar";
+"ui.update.available_version" = "Biscuit %@";
+"ui.update.available_subtitle" = "Aktuell installiert: %1$@ · %2$@";
+"ui.update.action_install" = "Laden und installieren";
+"ui.update.changes" = "Änderungen";
+"ui.update.downloading_title" = "Update wird geladen";
+"ui.update.verifying_title" = "Update wird geprüft";
+"ui.update.verifying_detail" = "Signatur wird verifiziert …";
+"ui.update.ready_title" = "Update bereit";
+"ui.update.ready_detail" = "Version %@ ist installationsbereit.";
+"ui.update.ready_subtitle" = "Die Signatur wurde geprüft. Biscuit startet neu.";
+"ui.update.action_relaunch" = "Neu starten";
+"ui.update.failed_banner" = "Update fehlgeschlagen: %@";
+
+/* MARK: - GUI: Einstellungen */
+"ui.settings.tab.general" = "Allgemein";
+"ui.settings.tab.updates" = "Updates";
+"ui.settings.tab.diagnostics" = "Diagnose";
+"ui.settings.language" = "Sprache";
+"ui.settings.language.system" = "Systemsprache";
+"ui.settings.language.hint" = "Wirkt sofort. Für die Menüleiste ist ein Neustart nötig.";
+"ui.settings.verify_footer" = "Die Verifikation liest das gesamte Medium zurück. Das verdoppelt die Dauer, deckt aber defekte und gefälschte Speichermedien auf.";
+"ui.settings.auto_check" = "Täglich nach Updates suchen";
+"ui.settings.last_check" = "Letzte Prüfung";
+"ui.settings.never" = "nie";
+"ui.settings.check_now" = "Jetzt suchen";
+"ui.settings.update_source" = "Quelle: github.com/%@";
+"ui.settings.no_signing_key" = "In diesem Build ist kein Signaturschlüssel eingebettet — automatische Updates sind deaktiviert.";
+"ui.settings.signing_explained" = "Jedes Update muss eine gültige Ed25519-Signatur des Projekt-Schlüssels tragen, sonst wird es verworfen.";
+"ui.settings.environment" = "Umgebung";
+"ui.settings.architecture" = "Architektur";
+"ui.settings.helper_connected" = "Helfer verbunden";
+"ui.settings.yes" = "ja";
+"ui.settings.no" = "nein";
+"ui.settings.not_found" = "nicht gefunden";
+"ui.settings.copy_diagnostics" = "Diagnosebericht kopieren";
+"ui.settings.diagnostics_footer" = "Enthält Versionen, Geräteliste und das Protokoll des letzten Vorgangs. Keine Dateiinhalte.";
+
+/* MARK: - GUI: Startwarnungen */
+"ui.startup.helper_missing" = "Der privilegierte Helfer fehlt (%@). Schreibvorgänge sind nicht möglich. Installiere die App neu.";
+"ui.startup.wimlib_missing" = "wimlib ist nicht verfügbar. Windows-ISOs mit einer install.wim über 4 GB können nicht verarbeitet werden. Behebung: brew install wimlib";
+"ui.startup.development_mode" = "Entwicklungsmodus: die App läuft nicht aus einem .app-Bundle, deshalb entfällt die Bundle-Prüfung des Helfers.";
+"ui.privilege.prompt" = "Biscuit benötigt einmal pro Sitzung Administrator-Rechte, um direkt auf den USB-Datenträger zu schreiben.";
+
+/* MARK: - Antwortdatei */
+"error.answer_file_rejected" = "Die Antwortdatei wurde abgelehnt.";
+"error.answer_file_write_failed" = "autounattend.xml konnte nicht auf das Medium geschrieben werden.";
+"error.answer_file_wrong_strategy" = "Eine Antwortdatei wirkt nur, wenn das Medium Datei für Datei zusammengesetzt wird.";
+"error.answer_file_missing_after_write" = "autounattend.xml fehlt auf dem fertigen Medium.";
+"error.answer_file_missing_after_write.remedy" = "Windows Setup würde nach Eingaben fragen statt unbeaufsichtigt zu laufen. Erstelle das Medium erneut.";
+"error.answer_file_unreadable" = "Die Antwortdatei konnte nicht gelesen werden.";
+
+/* MARK: - GUI: Antwortdatei */
+"ui.answer_file.title" = "Antwortdatei (optional)";
+"ui.answer_file.subtitle" = "Eine autounattend.xml automatisiert Windows Setup. Sie wird ins Wurzelverzeichnis des Mediums gelegt, wo Setup sie sucht.";
+"ui.answer_file.drop_here" = "autounattend.xml hierher ziehen";
+"ui.answer_file.choose" = "Datei auswählen …";
+"ui.answer_file.remove" = "Antwortdatei entfernen";
+"ui.answer_file.will_be_renamed" = "Wird als autounattend.xml geschrieben.";
+"ui.answer_file.secrets_warning" = "Diese Datei enthält Anmeldedaten im Klartext.";
+"ui.answer_file.secrets_detail" = "Sie landen unverschlüsselt auf dem USB-Datenträger und sind für jeden lesbar, der ihn findet. Windows' Option PlainText=false kodiert sie lediglich in Base64 — das ist keine Verschlüsselung.";
+"ui.answer_file.finding.not_xml" = "Die Datei ist kein wohlgeformtes XML. Windows Setup würde abbrechen.";
+"ui.answer_file.finding.wrong_root" = "Wurzelelement ist <%@>, erwartet wird <unattend>. Das ist keine Antwortdatei.";
+"ui.answer_file.finding.missing_namespace" = "Der unattend-Namensraum fehlt. Setup toleriert das meist.";
+"ui.answer_file.finding.too_large" = "Die Datei ist %@ groß — weit mehr als jede Antwortdatei.";
+"ui.answer_file.finding.empty" = "Die Datei ist leer.";
+"ui.answer_file.accessibility" = "Antwortdatei ablegen oder auswählen";
+"ui.blocker.answer_file_invalid" = "Die Antwortdatei ist unbrauchbar. Entferne oder ersetze sie.";
+"ui.confirm.field.answer_file" = "Antwortdatei";
+
+/* MARK: - Kompression */
+"error.decompression_failed" = "Das komprimierte Abbild konnte nicht gelesen werden.";
+"error.decompression_failed.remedy" = "Die Datei ist womöglich beschädigt oder nutzt ein Kompressionsformat, das Biscuit nicht lesen kann.";
+"error.decompression_truncated.remedy" = "Der Download ist vermutlich unvollständig. Lade die Datei erneut und prüfe die Prüfsumme.";
+"error.decompression_corrupted" = "Das komprimierte Abbild ist beschädigt.";
+"error.compression_unsupported" = "%@-Kompression wird nicht unterstützt.";
+"error.compression_unsupported.remedy" = "Entpacke die Datei selbst oder nutze die .xz- oder .gz-Fassung, falls der Anbieter eine bereitstellt.";
+"note.compressed_supported" = "%@-komprimiert — wird beim Schreiben entpackt.";
+"note.expands_to" = "Entpackt %@.";
+"note.expands_to_approximately" = "Entpackt etwa %@ — gzip speichert die Größe nur modulo 4 GB, bei einem größeren Abbild kann der Wert falsch sein.";
+"note.expanded_size_unknown" = "Die entpackte Größe lässt sich vorab nicht ermitteln, daher kann die Kapazität nicht vorher geprüft werden.";
+
+/* MARK: - Katalog */
+"error.catalogue_unreachable" = "Der Abbild-Katalog konnte nicht geladen werden.";
+"error.catalogue_invalid" = "Der Abbild-Katalog ist fehlerhaft.";
+"error.catalogue_empty" = "Der Abbild-Katalog enthält keine Einträge.";
+"error.catalogue_version_unsupported" = "Der Abbild-Katalog nutzt ein neueres Format.";
+"error.catalogue_version_unsupported.remedy" = "Aktualisiere Biscuit, um den aktuellen Katalog zu nutzen.";
+"error.catalogue_signature_missing" = "Zum Katalog fehlt die Signatur.";
+"error.catalogue_signature_missing.remedy" = "Ein unsignierter Katalog wird nicht verwendet. Lade Abbilder solange manuell.";
+"error.catalogue_no_key" = "In diesem Build ist kein Katalog-Signaturschlüssel eingebettet.";
+"error.catalogue_no_key.remedy" = "Der Katalog kann nicht geprüft werden und wird deshalb nicht verwendet.";
+"error.download_checksum_mismatch" = "Der Download stimmt nicht mit seiner Prüfsumme überein.";
+"error.download_checksum_mismatch.remedy" = "Die Datei wurde unterwegs beschädigt oder stammt nicht vom Anbieter. Sie wurde gelöscht; versuche es erneut.";
+"error.image_checksum_mismatch" = "Das Abbild stimmt nicht mit der erwarteten Prüfsumme überein.";
+"error.image_checksum_mismatch.remedy" = "Es wurde nichts Startfähiges geschrieben: Das erste Megabyte wurde bewusst zurückgehalten, der Datenträger hat also keine Partitionstabelle statt eines halb korrekten Systems. Lade das Abbild erneut.";
+
+/* MARK: - GUI: Katalog */
+"ui.catalogue.title" = "Abbild herunterladen";
+"ui.catalogue.subtitle" = "Geprüfte Abbilder aus dem Projektkatalog.";
+"ui.catalogue.open" = "Aus dem Katalog laden …";
+"ui.catalogue.refresh" = "Katalog neu laden";
+"ui.catalogue.loading" = "Katalog wird geladen …";
+"ui.catalogue.retry" = "Erneut versuchen";
+"ui.catalogue.download" = "Herunterladen";
+"ui.catalogue.select_prompt" = "Wähle ein Abbild aus.";
+"ui.catalogue.verifying" = "Prüfsumme wird verifiziert …";
+"ui.catalogue.offline" = "Es wird eine Offline-Kopie des Katalogs angezeigt.";
+"ui.catalogue.offline_detail" = "Zuletzt aktualisiert %@. Neuere Versionen fehlen möglicherweise.";
+"ui.catalogue.resumed" = "fortgesetzt ab %@";
+"ui.catalogue.provenance.signature" = "Signatur geprüft";
+"ui.catalogue.provenance.checksum" = "nur Prüfsumme";
+"ui.catalogue.provenance.none" = "ungeprüft";
+"ui.catalogue.cache_size" = "Heruntergeladene Abbilder: %@";
+"ui.catalogue.clear_cache" = "Abbild-Zwischenspeicher leeren";
+"ui.source.from_catalogue" = "Aus dem Katalog · herausgegeben von %@";
+"ui.source.digest_will_be_checked" = "Die Prüfsumme wird beim Schreiben verifiziert. Stimmt sie nicht, bleibt das erste Megabyte ungeschrieben, damit der Datenträger nicht für funktionsfähig gehalten werden kann.";
+"ui.catalogue.cache_footer" = "Heruntergeladene Abbilder bleiben erhalten, damit ein zweiter Schreibvorgang sie nicht erneut lädt. Vor der Wiederverwendung werden sie erneut gegen ihre Prüfsumme geprüft.";
+
+/* MARK: - macOS-Installationsprogramme */
+"error.macos_list_failed" = "Die Liste der macOS-Installationsprogramme konnte nicht geladen werden.";
+"error.macos_list_failed.remedy" = "Prüfe die Internetverbindung und versuche es erneut.";
+"error.macos_no_installers" = "Apple bietet für diesen Mac keine vollständigen Installationsprogramme an.";
+"error.macos_no_installers.remedy" = "Ältere macOS-Versionen werden nicht für jedes Modell angeboten. Lade das Installationsprogramm stattdessen im App Store.";
+"error.macos_fetch_failed" = "Das macOS-Installationsprogramm konnte nicht geladen werden.";
+"error.macos_fetch_no_space.remedy" = "Ein vollständiges Installationsprogramm braucht rund 17 GB freien Speicher, zusätzlich zum USB-Medium.";
+"error.macos_fetch_unavailable.remedy" = "Apple bietet diese Version für diesen Mac nicht mehr an.";
+"error.macos_installer_not_found" = "Das geladene Installationsprogramm wurde nicht gefunden.";
+"error.macos_installer_not_found.remedy" = "Sieh in /Programme nach einem „Install macOS …“-Programm und wähle es manuell aus.";
+"ui.catalogue.tab.images" = "Abbilder";
+"ui.catalogue.tab.macos" = "macOS";
+"ui.catalogue.macos.loading" = "Apple wird nach verfügbaren Installationsprogrammen gefragt …";
+"ui.catalogue.macos.trust" = "Von Apples eigenem softwareupdate geladen und geprüft. Biscuit pinnt hier keine Prüfsumme, weil es keinen Spiegelserver gibt, dem zu misstrauen wäre.";
+"ui.catalogue.macos.deferred" = "zurückgestellt";
+"ui.catalogue.macos.fetching" = "Wird geladen — das dauert 20–45 Minuten";
+"ui.catalogue.macos.size_hint" = "%@ Download, zusätzlich dieselbe Menge für das Medium";
+"ui.catalogue.tab.windows" = "Windows";
+"ui.windows.audience.pc" = "Für gewöhnliche PCs und Notebooks — der Normalfall.";
+"ui.windows.audience.arm" = "Nur für ARM-Geräte wie das Surface Pro X. Startet auf einem normalen PC nicht.";
+"ui.windows.audience.legacy" = "Für Hardware, die die Windows-11-Anforderungen nicht erfüllt.";
+"ui.windows.why_no_download" = "Microsoft liefert diese ISOs unter keiner festen Adresse aus und blockiert automatisierte Downloads. Biscuit öffnet deshalb die offizielle Seite im Browser, statt etwas anderes vorzugeben. Zieh die geladene Datei danach in Biscuit — dort wird sie geprüft.";
+"ui.windows.step.edition" = "Auf der Seite das ISO für mehrere Editionen wählen.";
+"ui.windows.step.language" = "Sprache auswählen und bestätigen.";
+"ui.windows.step.download" = "Das 64-Bit-ISO herunterladen.";
+"ui.windows.step.drop" = "Die Datei in Biscuit ziehen.";
+"ui.windows.open_page" = "Microsofts Seite öffnen";
+"ui.windows.page_hint" = "Öffnet im Browser auf microsoft.com.";
+"error.wim_metadata_unreadable" = "Die Beschreibung des Windows-Abbilds konnte nicht gelesen werden.";
+"error.wim_metadata_compressed" = "Dieses Windows-Abbild speichert seine Beschreibung komprimiert.";
+"error.wim_metadata_compressed.remedy" = "Das Medium lässt sich dennoch erstellen; nur die Editionsliste fehlt.";
+"note.windows_version" = "%1$@, Build %2$@.";
+"note.windows_architecture" = "Architektur: %@.";
+"note.windows_architecture_unusual" = "Dies ist ein %@-Abbild. Es startet auf einem gewöhnlichen PC nicht — nur auf Geräten mit diesem Prozessor.";
+"note.windows_editions" = "Editionen: %@.";
+"note.windows_languages" = "Sprachen: %@.";
+"note.windows_split_set" = "Dies ist Teil %1$d von %2$d eines geteilten Abbilds. Allein lässt sich daraus nicht installieren.";
+"note.solid_wim_cannot_split" = "Das Abbild nutzt solide %@-Kompression und lässt sich trotz seines Namens nicht teilen. Es wird stattdessen konvertiert, was länger dauert.";
+"error.answer_template_architecture" = "Für diese Prozessorarchitektur lässt sich keine Antwortdatei erzeugen.";
+"error.answer_template_invalid" = "Die erzeugte Antwortdatei hat die eigene Prüfung nicht bestanden.";
+"ui.answer_template.open" = "Erzeugen";
+"ui.answer_template.title" = "Antwortdatei erzeugen";
+"ui.answer_template.intro" = "Windows Setup liest diese Vorgaben vom Medium und wendet sie ohne Rückfrage an.";
+"ui.answer_template.bypass_hardware" = "TPM-, Secure-Boot-, RAM-, CPU- und Speicherprüfung überspringen";
+"ui.answer_template.bypass_hardware.detail" = "Lässt Windows 11 auf Hardware installieren, die es sonst ablehnt.";
+"ui.answer_template.bypass_consequence" = "Das ergibt eine Installation, die Microsoft nicht unterstützt und von Updates ausschließen kann. Das ist Microsofts Haltung, keine Einschränkung von Biscuit — das eine ist ohne das andere nicht zu haben.";
+"ui.answer_template.bypass_account" = "Setup ohne Microsoft-Konto abschließen lassen";
+"ui.answer_template.bypass_account.detail" = "Microsoft schließt diesen Weg zunehmend; von allen Optionen hier ist das die, die auf einem aktuellen Build am ehesten nicht mehr greift.";
+"ui.answer_template.skip_pages" = "Lizenz-, Registrierungs- und WLAN-Seiten überspringen";
+"ui.answer_template.decline_telemetry" = "Optionale Diagnosedaten ablehnen";
+"ui.answer_template.account_name" = "Name des lokalen Kontos";
+"ui.answer_template.account_password" = "Kennwort (optional)";
+"ui.answer_template.password_warning" = "Windows Setup lässt hier nur Klartext zu; das Kennwort ist damit für jeden lesbar, der das Medium in der Hand hat.";
+"ui.answer_template.generate" = "Erzeugen";
+"ui.answer_template.generated" = "Von Biscuit erzeugt";
+"ui.answer_template.architecture" = "Für %@ erzeugt, passend zum gewählten Abbild.";
+"error.wim_tool_rejected" = "Das wimlib-Programm wurde aus Sicherheitsgründen abgelehnt.";
+"error.wim_tool_rejected.remedy" = "Installiere es mit „brew install wimlib“ oder nutze einen Biscuit-Build mit eingebundenem wimlib.";

@@ -1,0 +1,61 @@
+{
+  "formatVersion": 1,
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "refreshIntervalHours": 24,
+  "entries": [
+    {
+      "kind": "category",
+      "category": {
+        "name": "Beispiele",
+        "summary": "Feste Eintr\u00e4ge f\u00fcr den Test",
+        "children": [
+          {
+            "kind": "image",
+            "image": {
+              "id": "sample.plain",
+              "name": "Sample Plain",
+              "summary": "Uncompressed image with a signed checksum",
+              "url": "https://example.org/sample.img",
+              "compression": "none",
+              "provenance": {
+                "strength": "publisher_signature",
+                "publisher": "Example",
+                "verifiedAt": "2026-10-06T08:44:53Z",
+                "checksumSource": "https://example.org/SHA256SUMS.sign",
+                "signingKeyFingerprint": "DF9B9C49EAA9298432589D76DA87E80D6294BE9B"
+              },
+              "notes": [],
+              "version": "1.0",
+              "downloadSizeBytes": 1024,
+              "downloadSHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          },
+          {
+            "kind": "image",
+            "image": {
+              "id": "sample.compressed",
+              "name": "Sample Compressed",
+              "summary": "xz image with an expanded digest",
+              "url": "https://example.org/sample.img.xz",
+              "compression": "xz",
+              "provenance": {
+                "strength": "publisher_checksum",
+                "publisher": "Example",
+                "verifiedAt": "2026-10-06T08:44:53Z",
+                "checksumSource": "https://example.org/catalogue"
+              },
+              "notes": [
+                "Checksum taken over TLS without a signature."
+              ],
+              "version": "2.0",
+              "downloadSizeBytes": 2048,
+              "downloadSHA256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "expandedSizeBytes": 9000000000,
+              "expandedSHA256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

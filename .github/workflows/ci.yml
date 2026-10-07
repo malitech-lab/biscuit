@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build und Tests
+    # Apple Silicon runner: the project targets arm64 and the raw-device code
+    # paths differ enough from x86_64 that testing elsewhere would be misleading.
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain anzeigen
+        run: |
+          sw_vers
+          uname -m
+          swift --version
+          xcodebuild -version
+          xcrun --show-sdk-version
+
+      - name: SwiftPM-Cache
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: openssl@3 für die Signatur-Interop-Tests
+        run: brew install openssl@3 wimlib xz
+        # xz is needed by the compression tests; gzip and bzip2 ship with macOS.
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Tests
+        run: swift test --parallel
+
+      - name: App-Bundle erzeugen
+        run: Scripts/bundle.sh --release --version 0.0.0-ci --build ${{ github.run_number }} --vendor-wimlib
+
+      - name: Bundle prüfen
+        run: |
+          APP=dist/Biscuit.app
+          test -x "$APP/Contents/MacOS/Biscuit"
+          test -x "$APP/Contents/MacOS/biscuit-helper"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+          plutil -lint "$APP/Contents/Info.plist"
+          codesign --verify --deep --strict "$APP"
+          # The helper must not be writable by anyone but its owner: the app
+          # launches it as root.
+          PERMS=$(stat -f "%Lp" "$APP/Contents/MacOS/biscuit-helper")
+          echo "helper mode: $PERMS"
+          test "$PERMS" = "755"
+          # wimlib must resolve from inside the bundle, not from Homebrew.
+          if [ -x "$APP/Contents/MacOS/wimlib-imagex" ]; then
+            ! otool -L "$APP/Contents/MacOS/wimlib-imagex" | grep -qE '/(opt|usr/local)/'
+            echo "wimlib ist eingebettet und hat keine externen Verweise"
+          fi
+
+      - name: App startet und beendet sich sauber
+        run: |
+          # Smoke test: a bundle that cannot even reach its run loop is broken in
+          # a way no unit test would catch.
+          open dist/Biscuit.app
+          sleep 8
+          if ! pgrep -f "dist/Biscuit.app/Contents/MacOS/Biscuit" >/dev/null; then
+            echo "::error::App läuft nach dem Start nicht"
+            ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head
+            exit 1
+          fi
+          echo "App läuft"
+          pkill -f "dist/Biscuit.app/Contents/MacOS/Biscuit"
+
+      - name: Artefakt hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biscuit-ci-${{ github.run_number }}
+          path: dist/Biscuit.app
+          retention-days: 7
+
+  lint:
+    name: Skripte
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          # SC2086 is intentional in the few places a word-split is wanted.
+          shellcheck --severity=style Scripts/*.sh
+      - name: python syntax
+        run: python3 -m py_compile Scripts/*.py

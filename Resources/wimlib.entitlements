@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Applies to the bundled `wimlib-imagex` only.
+
+	  The hardened runtime enables library validation, which requires every
+	  loaded dylib to carry the same Team ID as the process. Ad-hoc signatures
+	  have no Team ID at all, so dyld refuses to map `libwim.15.dylib` and
+	  reports "mapping process and mapped file (non-platform) have different
+	  Team IDs" — the binary is then killed on launch.
+
+	  Since this project deliberately does not depend on a paid Developer ID,
+	  there is no Team ID to share. Disabling library validation for this one
+	  executable is the narrow fix; the alternative would be dropping the
+	  hardened runtime entirely, which would weaken the whole bundle to solve a
+	  problem that exists in exactly one place.
+
+	  The library being loaded ships inside the same signed bundle, so nothing is
+	  gained by an attacker who could already replace it.
+	-->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

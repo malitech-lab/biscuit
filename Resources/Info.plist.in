@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Biscuit</string>
+	<key>CFBundleName</key>
+	<string>Biscuit</string>
+	<key>CFBundleIdentifier</key>
+	<string>@BUNDLE_ID@</string>
+	<key>CFBundleExecutable</key>
+	<string>Biscuit</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@BUILD@</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<!-- Languages the build ships. Declaring them makes macOS offer Biscuit in
+	     System Settings › General › Language & Region › Apps. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>de</string>
+	</array>
+
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+
+	<!-- Writing a USB stick must never be interrupted by the system deciding
+	     the app is idle, nor by a "sudden termination" that skips our flush. -->
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+
+	<!-- Shown by macOS when the user picks an image from one of these folders.
+	     The app reads it; the privileged helper never does — it receives an
+	     already-open descriptor instead. -->
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Biscuit liest das ausgewählte Abbild aus deinem Download-Ordner.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Biscuit liest das ausgewählte Abbild aus deinem Dokumente-Ordner.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Biscuit liest das ausgewählte Abbild von deinem Schreibtisch.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Biscuit beschreibt den ausgewählten USB-Datenträger.</string>
+
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Datenträgerabbild</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.iso-image</string>
+				<string>com.apple.disk-image-udif</string>
+				<string>public.disk-image</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Update channel. A fork can repoint these without touching code. -->
+	<key>BiscuitUpdateRepository</key>
+	<string>@UPDATE_REPO@</string>
+	<!-- Signed image catalogue. Empty means: derive from the repository. -->
+	<key>BiscuitCatalogueURL</key>
+	<string>@CATALOGUE_URL@</string>
+	<key>BiscuitUpdatePublicKey</key>
+	<string>@UPDATE_PUBKEY@</string>
+
+	<key>NSHumanReadableCopyright</key>
+	<string>@COPYRIGHT@</string>
+</dict>
+</plist>
