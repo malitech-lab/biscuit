@@ -54,6 +54,13 @@ public final class ToolProgressReporter: @unchecked Sendable {
     private let lock = NSLock()
     private var throttle: ProgressThrottle
     private var lastPercent: Double = -1
+    /// Wann zuletzt irgendeine Ausgabe kam.
+    ///
+    /// Ein Lauf gegen echte Hardware sah sieben Minuten lang tot aus, obwohl er
+    /// arbeitete. Woran das lag, ist noch offen — aber eine Oberfläche, die
+    /// nicht zwischen „rechnet noch" und „hängt" unterscheiden kann, zwingt den
+    /// Nutzer zum Raten, und Raten heißt hier: Stick abziehen.
+    private let lastOutput = TimestampBox()
     private var sawAny = false
 
     public init(
@@ -71,6 +78,7 @@ public final class ToolProgressReporter: @unchecked Sendable {
     /// Feeds one output line. Lines without a percentage are forwarded to the
     /// log at debug level instead, so a tool's status messages are not lost.
     public func consume(_ line: String) {
+        lastOutput.store(Date())
         guard let percent = ProgressTextParser.percentage(in: line) else {
             if line.count > 3 { context.log(.debug, line) }
             return
@@ -103,5 +111,22 @@ public final class ToolProgressReporter: @unchecked Sendable {
     public var highestPercent: Double? {
         lock.lock(); defer { lock.unlock() }
         return lastPercent >= 0 ? lastPercent : nil
+    }
+}
+
+
+/// Thread-sicherer Zeitstempel.
+final class TimestampBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = Date()
+
+    func store(_ date: Date) {
+        lock.lock(); defer { lock.unlock() }
+        value = date
+    }
+
+    var age: TimeInterval {
+        lock.lock(); defer { lock.unlock() }
+        return Date().timeIntervalSince(value)
     }
 }

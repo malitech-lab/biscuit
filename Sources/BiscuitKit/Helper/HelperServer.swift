@@ -303,11 +303,25 @@ public final class HelperServer: @unchecked Sendable {
 
     /// Sole owner of reads on `channel`.
     private func readLoop(channel: FrameChannel) -> Outcome {
+        let diagnostics = diagnostics
         let emit: @Sendable (HelperResponse) -> Void = { response in
             // A failed send means the app went away. The job is cancelled by the
             // disconnect path rather than here, so a partially written device
             // still gets flushed and reported.
-            try? channel.send(response)
+            //
+            // Aber nicht mehr stillschweigend. Eine Fassung mit `try?` hat einen
+            // echten Fehlschlag unsichtbar gemacht: der Helfer arbeitete einen
+            // Auftrag über sieben Minuten zu Ende und meldete „finished", während
+            // die App ab Minute drei keinen einzigen Rahmen mehr erhielt und
+            // „läuft" anzeigte, bis der Leerlauf-Timeout zuschlug. Im
+            // Helfer-Protokoll stand dazu nichts, weil der Fehler verworfen
+            // wurde. Ob Senden die Ursache war, ist weiterhin offen — aber ohne
+            // diese Zeile lässt es sich nicht ausschließen.
+            do {
+                try channel.send(response)
+            } catch {
+                diagnostics.error("send failed: \(error) — frame dropped")
+            }
         }
 
         while true {
