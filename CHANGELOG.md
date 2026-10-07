@@ -161,6 +161,13 @@ Medium oder einem hängenden Vorgang geführt.
   akzeptierte, und damit die Meldung zum Schweigen gebracht statt die Ursache
   behoben. Die CI wurde grün, das Release kaputt.
 
+  Auch der zweite Versuch scheiterte, und wieder an derselben Denkform: ich
+  prüfte, *ob* `--build-system` existiert, nicht welche Werte sie annimmt. Die
+  Namen unterscheiden sich zwischen Toolchains (`swiftbuild` hier, `native`,
+  `next` oder `xcode` auf dem Runner), und rc.2 brach mit
+  `The value 'swiftbuild' is invalid` ab. Jetzt werden die Kandidaten
+  durchprobiert; `native` steht bewusst nicht darunter.
+
   Drei Gegenmaßnahmen, und nur die erste ist verlässlich:
   `bundle.sh` wählt das Build-System jetzt ausdrücklich; es prüft, ob im Binary
   ein `.build`-Pfad steht (maschinenunabhängig — eine Startprobe auf der

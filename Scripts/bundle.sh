@@ -119,12 +119,27 @@ log "Baue Biscuit $VERSION ($BUILD_NUMBER), Konfiguration: $CONFIGURATION"
 # Fehlt die Option in der Toolchain, wird ohne sie gebaut; die
 # Eigenständigkeitsprüfung weiter unten bricht dann ab, statt ein kaputtes
 # Bundle auszuliefern.
+# Die Namen der Build-Systeme unterscheiden sich zwischen Toolchains: hier
+# 'swiftbuild', auf dem CI-Runner 'native', 'next' oder 'xcode'. Beim ersten
+# Versuch wurde nur geprüft, *ob* die Option existiert, nicht welche Werte sie
+# annimmt — und der Release-Lauf brach mit "The value 'swiftbuild' is invalid"
+# ab. Deshalb werden die Kandidaten durchprobiert.
+#
+# 'native' steht bewusst nicht in der Liste: dessen Bundle.module kompiliert den
+# absoluten Build-Pfad ein, und genau daran ist v0.1.0-rc.1 gescheitert. Wird
+# keiner der anderen angenommen, wird ohne Option gebaut und die
+# Eigenständigkeitsprüfung weiter unten entscheidet.
 BUILD_SYSTEM_ARGS=""
-if swift build --help 2>&1 | grep -q -- "--build-system"; then
-  BUILD_SYSTEM_ARGS="--build-system swiftbuild"
-  log "Build-System: swiftbuild (ausdrücklich gewählt)"
-else
-  warn "Diese Toolchain kennt --build-system nicht; baue mit der Vorgabe."
+for candidate in swiftbuild next xcode; do
+  if swift build --build-system "$candidate" -c "$CONFIGURATION" \
+       --show-bin-path >/dev/null 2>&1; then
+    BUILD_SYSTEM_ARGS="--build-system $candidate"
+    log "Build-System: $candidate"
+    break
+  fi
+done
+if [ -z "$BUILD_SYSTEM_ARGS" ]; then
+  warn "Kein geeignetes Build-System gefunden; baue mit der Vorgabe der Toolchain."
 fi
 
 # shellcheck disable=SC2086  # BUILD_SYSTEM_ARGS ist bewusst wortgetrennt.
