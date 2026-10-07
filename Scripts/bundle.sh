@@ -145,9 +145,26 @@ done
 [ "$BUNDLE_COUNT" -gt 0 ] || die "Kein Ressourcen-Bundle in $BIN_DIR gefunden — die Oberfläche würde nur Schlüssel anzeigen."
 
 # Verify both languages actually made it in.
+#
+# Two layouts have to be accepted. SwiftPM now has two build systems, and they
+# package resource bundles differently: the Xcode-based one produces a proper
+# macOS bundle with `Contents/Resources/en.lproj`, while the native one puts
+# `en.lproj` straight at the top level. Which one runs depends on the toolchain,
+# so hardcoding either makes the script work on one machine and fail on the
+# next — it passed locally and failed in CI for exactly this reason.
+#
+# `Bundle.module` copes with both, so this is a packaging detail rather than a
+# runtime one; the check simply has to look in both places.
+RES_BUNDLE="$APP/Contents/Resources/Biscuit_BiscuitKit.bundle"
 for language in en de; do
-  strings_file="$APP/Contents/Resources/Biscuit_BiscuitKit.bundle/Contents/Resources/$language.lproj/Localizable.strings"
-  [ -f "$strings_file" ] || die "Zeichenkettentabelle für '$language' fehlt im Bundle"
+  strings_file=""
+  for candidate in \
+    "$RES_BUNDLE/Contents/Resources/$language.lproj/Localizable.strings" \
+    "$RES_BUNDLE/$language.lproj/Localizable.strings"
+  do
+    if [ -f "$candidate" ]; then strings_file="$candidate"; break; fi
+  done
+  [ -n "$strings_file" ] || die "Zeichenkettentabelle für '$language' fehlt im Bundle"
   plutil -lint "$strings_file" >/dev/null || die "Zeichenkettentabelle für '$language' ist ungültig"
 done
 log "Sprachen im Bundle: en, de"

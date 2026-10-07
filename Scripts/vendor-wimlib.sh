@@ -71,7 +71,15 @@ while [ ${#QUEUE[@]} -gt 0 ]; do
     is_system_lib "$dep" && continue
 
     REAL="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$dep" 2>/dev/null || echo "")"
-    [ -n "$REAL" ] && [ -f "$REAL" ] || { log "überspringe nicht auflösbare Abhängigkeit: $dep"; continue; }
+    # Als `if` ausgeschrieben statt `A && B || C`: dort läuft C auch, wenn A
+    # wahr und B falsch ist. Hier ist das sogar gewollt, aber die Form ist eine
+    # bekannte Fehlerquelle, und shellcheck meldet sie je nach Version (0.9.0
+    # ja, 0.11.0 nein) — eine Schranke, die von der Werkzeugversion abhängt,
+    # ist keine.
+    if [ -z "$REAL" ] || [ ! -f "$REAL" ]; then
+      log "überspringe nicht auflösbare Abhängigkeit: $dep"
+      continue
+    fi
 
     BASE="$(basename "$REAL")"
     DEST="$FRAMEWORKS/$BASE"
