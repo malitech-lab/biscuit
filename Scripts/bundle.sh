@@ -119,41 +119,26 @@ log "Baue Biscuit $VERSION ($BUILD_NUMBER), Konfiguration: $CONFIGURATION"
 # Fehlt die Option in der Toolchain, wird ohne sie gebaut; die
 # Eigenständigkeitsprüfung weiter unten bricht dann ab, statt ein kaputtes
 # Bundle auszuliefern.
-# Die Namen der Build-Systeme unterscheiden sich zwischen Toolchains: hier
-# 'swiftbuild', auf dem CI-Runner 'native', 'next' oder 'xcode'. Beim ersten
-# Versuch wurde nur geprüft, *ob* die Option existiert, nicht welche Werte sie
-# annimmt — und der Release-Lauf brach mit "The value 'swiftbuild' is invalid"
-# ab. Deshalb werden die Kandidaten durchprobiert.
+# Bewusst keine Wahl des Build-Systems.
 #
-# 'native' steht bewusst nicht in der Liste: dessen Bundle.module kompiliert den
-# absoluten Build-Pfad ein, und genau daran ist v0.1.0-rc.1 gescheitert.
+# Drei Versuche, eines zu erzwingen, sind gescheitert — jeder an derselben
+# Denkform, Verfügbarkeit statt Eignung zu prüfen:
 #
-# Die Reihenfolge ist gemessen, nicht geraten. 'next' wird von der Toolchain des
-# CI-Runners angenommen, erzeugt aber denselben Zugriffscode wie 'native' — die
-# Eigenständigkeitsprüfung weiter unten hat genau das aufgedeckt, bevor daraus
-# ein Release wurde. Deshalb steht 'xcode' davor.
+#   1. Nur geprüft, *ob* `--build-system` existiert → der Runner lehnte den Wert
+#      'swiftbuild' ab.
+#   2. Kandidaten durchprobiert → 'next' wurde angenommen, erzeugt aber denselben
+#      Zugriffscode wie 'native'.
+#   3. Mit `--show-bin-path` geprobt → das baut nicht, also bestand 'xcode' die
+#      Probe und scheiterte erst im echten Build an "duplicate output file".
 #
-# Wird keiner angenommen, wird ohne Option gebaut; die Prüfung entscheidet.
-BUILD_SYSTEM_ARGS=""
-for candidate in swiftbuild xcode next; do
-  if swift build --build-system "$candidate" -c "$CONFIGURATION" \
-       --show-bin-path >/dev/null 2>&1; then
-    BUILD_SYSTEM_ARGS="--build-system $candidate"
-    log "Build-System: $candidate"
-    break
-  fi
-done
-if [ -z "$BUILD_SYSTEM_ARGS" ]; then
-  warn "Kein geeignetes Build-System gefunden; baue mit der Vorgabe der Toolchain."
-fi
+# Nötig war das alles nur, weil die Lokalisierung aus dem SwiftPM-Ressourcen-
+# Bundle las, dessen Lage vom Build-System abhängt. Das liest sie nicht mehr:
+# die Tabellen liegen in Contents/Resources. Damit ist das Build-System
+# gleichgültig, und die Vorgabe der Toolchain ist die richtige Wahl.
+swift build -c "$CONFIGURATION" --product Biscuit
+swift build -c "$CONFIGURATION" --product biscuit-helper
 
-# shellcheck disable=SC2086  # BUILD_SYSTEM_ARGS ist bewusst wortgetrennt.
-swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --product Biscuit
-# shellcheck disable=SC2086
-swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --product biscuit-helper
-
-# shellcheck disable=SC2086
-BIN_DIR="$(swift build $BUILD_SYSTEM_ARGS -c "$CONFIGURATION" --show-bin-path)"
+BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 [ -x "$BIN_DIR/Biscuit" ] || die "Biscuit nicht gefunden in $BIN_DIR"
 [ -x "$BIN_DIR/biscuit-helper" ] || die "biscuit-helper nicht gefunden in $BIN_DIR"
 
@@ -366,11 +351,9 @@ if [ "$SMOKE_OK" != "yes" ]; then
   sed 's/^/    /' "$SMOKE_LOG" >&2
   rm -f "$SMOKE_LOG"
   die "Startprobe fehlgeschlagen — das Bundle ist nicht lauffähig.
-  Häufigste Ursache: das Binary wurde mit dem nativen SwiftPM-Build-System
-  gebaut, dessen Bundle.module ausschließlich im Wurzelverzeichnis des .app
-  sucht. Dort darf das Ressourcen-Bundle nicht liegen, weil es die
-  Code-Signatur bricht. Abhilfe: mit dem Xcode-Build-System bauen
-  (swift build --build-system swiftbuild)."
+  Prüfe die Ausgabe oben. Enthält sie \"could not find bundle\" oder
+  \"unable to find bundle\", fehlen die Sprachtabellen in Contents/Resources;
+  L10n liest dort zuerst und fällt nur in Tests auf Bundle.module zurück."
 fi
 rm -f "$SMOKE_LOG"
 log "Startprobe bestanden"
