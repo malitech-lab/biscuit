@@ -156,7 +156,12 @@ struct DeviceIdentifierTests {
         }
         let inspector = DeviceInspector()
         let devices = try await inspector.enumerateDevices()
-        #expect(!devices.isEmpty, "keine Geräte gefunden")
+        // Keine Geräteliste zu verlangen: `enumerateDevices` zeigt
+        // Wechseldatenträger, und ohne angeschlossenen Stick ist die Liste
+        // berechtigterweise leer. Der erste Entwurf verlangte sie und schlug
+        // fehl, sobald der Teststick ausgeworfen war — ein Test, der von
+        // angestecktem Zubehör abhängt, meldet die Umgebung statt die Software.
+        guard !devices.isEmpty else { return }
         for device in devices {
             #expect(
                 DeviceInspector.isPlausibleIdentifier(device.bsdName),

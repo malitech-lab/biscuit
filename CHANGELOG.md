@@ -133,6 +133,34 @@ unter dem alten Namen, die migriert werden müsste.
   abgeschaltet — die Ausgabe wird dort angezeigt, nicht geparst. Die CI nutzt
   dieselbe Stufe, damit lokal und dort dasselbe gilt.
 
+### Behoben — die Windows-Installation brach ab
+
+- **Biscuit schrieb eine Antwortdatei, die niemand angefordert hatte.**
+  `answerFile` wurde nur geräumt, wenn der Nutzer sie ausdrücklich entfernte
+  oder die Quelle entfernte — **nicht beim Wählen einer neuen Quelle**. Wer die
+  Vorlagenfunktion einmal ausprobierte, trug die erzeugte Datei danach an jedem
+  weiteren Auftrag mit sich. Sie landete auf einem Medium, für das sie nie
+  gedacht war.
+
+  Jetzt verwirft eine neue Quelle die Antwortdatei und protokolliert das. Und
+  der Diagnosebericht weist sie aus: im eingefügten Protokoll des Nutzers war
+  von ihr nichts zu sehen, die Zeile stand nur im Helfer-Protokoll, an das man
+  ohne Root nicht herankommt.
+
+- **Die erzeugte Antwortdatei war schemawidrig.** `InputLocale`,
+  `SystemLocale`, `UILanguage` und `UserLocale` standen in
+  `Microsoft-Windows-Shell-Setup`; sie gehören in
+  `Microsoft-Windows-International-Core`. Windows Setup prüft jede Komponente
+  gegen ihr Schema und bricht bei einem fremden Element den gesamten Durchlauf
+  ab — „Windows could not parse or process the unattend answer file".
+
+  Durchgelassen hat es die eigene Prüfung, die Wurzelelement und Namensraum
+  kennt, aber keine Komponentenschemata. Der Test „jede Optionskombination
+  besteht die Prüfung" bestätigte damit nur, dass Erzeuger und Prüfer dieselbe
+  Lücke haben — die dritte geschlossene Schleife in diesem Projekt.
+  `schemaViolations()` prüft jetzt die Zuordnung Element→Komponente für alle
+  Elemente, die die Vorlage erzeugt, und `build()` bricht bei einem Verstoß ab.
+
 ### Erster erfolgreicher Lauf gegen echte Hardware
 
 Windows-11-Medium auf einem 31,5-GB-Stick, 11:18, 8,98 GB geschrieben:

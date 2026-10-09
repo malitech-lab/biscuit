@@ -189,3 +189,92 @@ struct EraseOnlySourceWarningTests {
         #expect(text.contains("confirmSourceUnused"))
     }
 }
+
+/// Die Antwortdatei muss im Bericht stehen.
+///
+/// Ein Medium wurde mit einer `autounattend.xml` beschrieben, die der Nutzer
+/// nicht angefordert hatte: er hatte die Vorlage einmal ausprobiert, und sie
+/// blieb danach an jedem weiteren Auftrag hängen, weil eine neue Quelle sie
+/// nicht räumte. Die Windows-Installation brach daran ab.
+///
+/// Sein eingefügtes Protokoll gab davon keinen Hinweis — die Zeile stand nur im
+/// Protokoll des Helfers, an das man ohne Root nicht herankommt. Ein
+/// Diagnosebericht, der die wirksamen Eingaben verschweigt, kostet genau die
+/// Zeit, die er sparen soll.
+@Suite("Diagnosebericht: Antwortdatei")
+struct DiagnosticsReportAnswerFileTests {
+    private func context(
+        strategy: WriteStrategy,
+        answerFile: String?
+    ) -> DiagnosticsReport.Context {
+        .init(
+            appVersion: "0.1.0", appBuild: "1", osVersion: "27.0.1",
+            target: "disk4", source: "win.iso", strategy: strategy,
+            answerFile: answerFile
+        )
+    }
+
+    @Test("Eine mitgeschriebene Antwortdatei wird genannt")
+    func answerFileAppears() {
+        let report = DiagnosticsReport.render(
+            context: context(strategy: .windowsFAT32, answerFile: "autounattend.xml · 1,6 KB"),
+            entries: []
+        )
+        #expect(report.contains("Answer file:"))
+        #expect(report.contains("autounattend.xml"))
+    }
+
+    @Test("Ohne Antwortdatei erscheint keine Zeile")
+    func absentWhenNone() {
+        let report = DiagnosticsReport.render(
+            context: context(strategy: .windowsFAT32, answerFile: nil), entries: []
+        )
+        #expect(!report.contains("Answer file:"))
+    }
+
+    @Test("Bei „nur löschen“ wird keine Antwortdatei behauptet")
+    func notClaimedForEraseOnly() {
+        // Die Methode schreibt nichts, also auch keine Antwortdatei.
+        let report = DiagnosticsReport.render(
+            context: context(strategy: .eraseOnly, answerFile: "autounattend.xml"), entries: []
+        )
+        #expect(!report.contains("Answer file:"))
+    }
+}
+
+/// Eine neue Quelle beginnt einen neuen Auftrag.
+@Suite("Antwortdatei: Lebensdauer")
+struct AnswerFileLifetimeTests {
+    @Test("selectSource verwirft eine vorhandene Antwortdatei")
+    func selectSourceDiscardsIt() throws {
+        // Am Quelltext geprüft, weil JobCoordinator im App-Target liegt.
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var source: String?
+        for _ in 0..<5 {
+            let candidate = directory
+                .appendingPathComponent("Sources/BiscuitApp/Services/JobCoordinator.swift")
+            if let data = try? Data(contentsOf: candidate) {
+                source = String(decoding: data, as: UTF8.self)
+                break
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        let text = try #require(source, "JobCoordinator nicht gefunden")
+
+        // Die Zuweisung muss im Erfolgspfad von selectSource stehen, also nach
+        // `source = inspected`.
+        let assign = try #require(text.range(of: "source = inspected"))
+        let clear = try #require(
+            text.range(of: "answerFile = nil", range: assign.upperBound..<text.endIndex),
+            "Antwortdatei wird beim Quellenwechsel nicht geräumt"
+        )
+        let nextFunction = text.range(of: "\n    func ", range: assign.upperBound..<text.endIndex)
+        if let nextFunction {
+            #expect(
+                clear.lowerBound < nextFunction.lowerBound,
+                "Räumen steht außerhalb von selectSource"
+            )
+        }
+        #expect(text.contains("answer file discarded"), "Verwerfen wird nicht protokolliert")
+    }
+}

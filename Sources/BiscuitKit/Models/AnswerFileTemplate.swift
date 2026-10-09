@@ -182,20 +182,40 @@ public struct AnswerFileTemplate: Sendable, Hashable, Codable {
               let arch = processorArchitecture
         else { return nil }
 
-        var body: [String] = []
+        var components: [String] = []
 
+        // Sprache und Tastatur gehören in `Microsoft-Windows-International-Core`.
+        //
+        // Sie standen hier zuerst in `Microsoft-Windows-Shell-Setup`, und das
+        // war kein Schönheitsfehler: Windows Setup prüft jede Komponente gegen
+        // ihr Schema und bricht bei einem fremden Element den ganzen Durchlauf
+        // ab — „Windows could not parse or process the unattend answer file".
+        // Die Installation scheiterte dadurch reproduzierbar.
+        //
+        // Aufgefallen ist es erst an einem echten Windows-Installer. Die eigene
+        // Prüfung ließ es durch, weil sie Wurzelelement und Namensraum kennt,
+        // aber keine Komponentenschemata — und der Test „jede Optionskombination
+        // besteht die Prüfung" bestätigte damit nur, dass beide dieselbe Lücke
+        // haben. `AnswerFileTemplate.schemaViolations` schließt sie für die
+        // Elemente, die diese Vorlage selbst erzeugt.
         if let locale, Self.isPlausibleLocale(locale) {
             let escaped = Self.escape(locale)
-            body.append(
+            components.append(
                 """
+                      <component name="Microsoft-Windows-International-Core" \
+                processorArchitecture="\(arch)" publicKeyToken="31bf3856ad364e35" \
+                language="neutral" versionScope="nonSxS" \
+                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
                       <InputLocale>\(escaped)</InputLocale>
                       <SystemLocale>\(escaped)</SystemLocale>
                       <UILanguage>\(escaped)</UILanguage>
                       <UserLocale>\(escaped)</UserLocale>
+                    </component>
                 """
             )
         }
 
+        var shell: [String] = []
         var oobe: [String] = []
         if skipSetupPages {
             oobe.append("          <HideEULAPage>true</HideEULAPage>")
@@ -211,22 +231,29 @@ public struct AnswerFileTemplate: Sendable, Hashable, Codable {
             oobe.append("          <ProtectYourPC>3</ProtectYourPC>")
         }
         if !oobe.isEmpty {
-            body.append("        <OOBE>\n\(oobe.joined(separator: "\n"))\n        </OOBE>")
+            shell.append("        <OOBE>\n\(oobe.joined(separator: "\n"))\n        </OOBE>")
         }
-
         if let account = localAccount, !account.name.isEmpty {
-            body.append(renderLocalAccount(account))
+            shell.append(renderLocalAccount(account))
         }
 
-        guard !body.isEmpty else { return nil }
+        if !shell.isEmpty {
+            components.append(
+                """
+                      <component name="Microsoft-Windows-Shell-Setup" \
+                processorArchitecture="\(arch)" publicKeyToken="31bf3856ad364e35" \
+                language="neutral" versionScope="nonSxS" \
+                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+                \(shell.joined(separator: "\n"))
+                    </component>
+                """
+            )
+        }
 
+        guard !components.isEmpty else { return nil }
         return """
               <settings pass="oobeSystem">
-                <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="\(arch)" \
-            publicKeyToken="31bf3856ad364e35" language="neutral" \
-            versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-            \(body.joined(separator: "\n"))
-                </component>
+            \(components.joined(separator: "\n"))
               </settings>
             """
     }
@@ -297,6 +324,57 @@ public struct AnswerFileTemplate: Sendable, Hashable, Codable {
         }
     }
 
+    // MARK: - Schema
+
+    /// Welche Elemente in welcher Komponente erlaubt sind.
+    ///
+    /// Bewusst eng: nur die Elemente, die diese Vorlage selbst erzeugt. Eine
+    /// vollständige Nachbildung des Unattend-Schemas wäre viel Pflegeaufwand
+    /// für wenig Gewinn — diese Tabelle fängt genau den Fehler, der bereits
+    /// passiert ist, und jeden gleichartigen beim nächsten Umbau.
+    static let elementOwners: [String: String] = [
+        "InputLocale": "Microsoft-Windows-International-Core",
+        "SystemLocale": "Microsoft-Windows-International-Core",
+        "UILanguage": "Microsoft-Windows-International-Core",
+        "UserLocale": "Microsoft-Windows-International-Core",
+        "OOBE": "Microsoft-Windows-Shell-Setup",
+        "UserAccounts": "Microsoft-Windows-Shell-Setup",
+        "HideEULAPage": "Microsoft-Windows-Shell-Setup",
+        "HideOEMRegistrationScreen": "Microsoft-Windows-Shell-Setup",
+        "HideWirelessSetupInOOBE": "Microsoft-Windows-Shell-Setup",
+        "HideOnlineAccountScreens": "Microsoft-Windows-Shell-Setup",
+        "ProtectYourPC": "Microsoft-Windows-Shell-Setup"
+    ]
+
+    /// Findet Elemente, die in der falschen Komponente stehen.
+    ///
+    /// Windows Setup prüft jede Komponente gegen ihr Schema und bricht bei
+    /// einem fremden Element den gesamten Durchlauf ab. Das ist keine
+    /// Warnung, die man übersehen kann — die Installation endet.
+    public func schemaViolations() -> [String] {
+        var violations: [String] = []
+        var currentComponent: String?
+
+        for rawLine in render().split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("<component "), let range = line.range(of: #"name=""#) {
+                let rest = line[range.upperBound...]
+                currentComponent = rest.prefix { $0 != "\"" }.description
+                continue
+            }
+            if line.hasPrefix("</component") { currentComponent = nil; continue }
+
+            guard line.hasPrefix("<"), !line.hasPrefix("</"), !line.hasPrefix("<?") else { continue }
+            let name = line.dropFirst().prefix { $0.isLetter || $0.isNumber }.description
+            guard let owner = Self.elementOwners[name] else { continue }
+            guard let component = currentComponent else { continue }
+            if component != owner {
+                violations.append("<\(name)> is in \(component), belongs in \(owner)")
+            }
+        }
+        return violations
+    }
+
     // MARK: - Building
 
     /// Renders and validates in one step.
@@ -311,6 +389,19 @@ public struct AnswerFileTemplate: Sendable, Hashable, Codable {
                 kind: .internalInconsistency,
                 message: t(.errorAnswerTemplateArchitecture),
                 diagnostics: "no autounattend architecture for \(architecture.displayName)"
+            )
+        }
+
+        // Vor der allgemeinen Prüfung: die Komponentenzuordnung. Die
+        // allgemeine Prüfung kennt Wurzelelement und Namensraum, aber keine
+        // Schemata — sie hat eine fehlplatzierte Spracheinstellung
+        // durchgelassen, an der jede Installation scheiterte.
+        let violations = schemaViolations()
+        guard violations.isEmpty else {
+            throw BiscuitError(
+                kind: .internalInconsistency,
+                message: t(.errorAnswerTemplateInvalid),
+                diagnostics: violations.joined(separator: "; ")
             )
         }
 

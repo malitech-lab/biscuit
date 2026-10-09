@@ -29,6 +29,8 @@ public enum DiagnosticsReport {
         public var target: String?
         public var source: String?
         public var strategy: WriteStrategy
+        /// Beschreibung der Antwortdatei, falls eine mitgeschrieben wird.
+        public var answerFile: String?
 
         public init(
             appVersion: String,
@@ -36,7 +38,8 @@ public enum DiagnosticsReport {
             osVersion: String,
             target: String? = nil,
             source: String? = nil,
-            strategy: WriteStrategy
+            strategy: WriteStrategy,
+            answerFile: String? = nil
         ) {
             self.appVersion = appVersion
             self.appBuild = appBuild
@@ -44,6 +47,7 @@ public enum DiagnosticsReport {
             self.target = target
             self.source = source
             self.strategy = strategy
+            self.answerFile = answerFile
         }
     }
 
@@ -97,6 +101,13 @@ public enum DiagnosticsReport {
             lines.append("Source: \(source)")
         }
         lines.append("Method: \(context.strategy.rawValue)")
+        // Muss im Bericht stehen. Ein Medium wurde mit einer Antwortdatei
+        // beschrieben, die der Nutzer nicht angefordert hatte, und sein
+        // eingefügtes Protokoll gab davon keinen Hinweis — der Fehler war nur
+        // im Protokoll des Helfers zu sehen.
+        if let answerFile = context.answerFile, strategyUsesSource(context.strategy) {
+            lines.append("Answer file: \(answerFile)")
+        }
         // Said plainly, because the result surprised a real user.
         if !strategyUsesSource(context.strategy) {
             lines.append("Note: this method only erases; nothing is written to the disk.")

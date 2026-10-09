@@ -292,3 +292,106 @@ struct AnswerFileTemplateTests {
         #expect(decoded.answerFile?.isUsable == true)
     }
 }
+
+/// Komponentenschema: welches Element in welche Komponente gehört.
+///
+/// Die erste Fassung schrieb `InputLocale`, `SystemLocale`, `UILanguage` und
+/// `UserLocale` nach `Microsoft-Windows-Shell-Setup`. Sie gehören in
+/// `Microsoft-Windows-International-Core`. Windows Setup prüft jede Komponente
+/// gegen ihr Schema und bricht bei einem fremden Element den gesamten Durchlauf
+/// ab — die Installation scheiterte dadurch reproduzierbar auf echter Hardware.
+///
+/// Durchgelassen hat es die eigene Prüfung, die Wurzelelement und Namensraum
+/// kennt, aber keine Schemata. Der Test „jede Optionskombination besteht die
+/// Prüfung" bestätigte damit nur, dass Erzeuger und Prüfer dieselbe Lücke
+/// haben — eine geschlossene Schleife, die dritte in diesem Projekt.
+@Suite("Antwortdatei: Komponentenschema")
+struct AnswerTemplateSchemaTests {
+    @Test("Spracheinstellungen stehen in International-Core")
+    func localeGoesToInternationalCore() throws {
+        let xml = AnswerFileTemplate(locale: "de-DE").render()
+        let document = try XMLDocument(data: Data(xml.utf8), options: [])
+
+        for element in ["InputLocale", "SystemLocale", "UILanguage", "UserLocale"] {
+            let nodes = try document.nodes(forXPath: "//*[local-name()='\(element)']")
+            #expect(nodes.count == 1, Comment(rawValue: "\(element) fehlt oder doppelt"))
+            let parent = nodes.first?.parent as? XMLElement
+            let component = parent?.attribute(forName: "name")?.stringValue
+            #expect(
+                component == "Microsoft-Windows-International-Core",
+                Comment(rawValue: "\(element) steht in \(component ?? "?")")
+            )
+        }
+    }
+
+    @Test("OOBE und Konten stehen in Shell-Setup")
+    func oobeStaysInShellSetup() throws {
+        let xml = AnswerFileTemplate(
+            skipSetupPages: true, localAccount: .init(name: "Nutzer")
+        ).render()
+        let document = try XMLDocument(data: Data(xml.utf8), options: [])
+
+        for element in ["OOBE", "UserAccounts"] {
+            let nodes = try document.nodes(forXPath: "//*[local-name()='\(element)']")
+            let parent = nodes.first?.parent as? XMLElement
+            #expect(
+                parent?.attribute(forName: "name")?.stringValue == "Microsoft-Windows-Shell-Setup",
+                Comment(rawValue: "\(element) in falscher Komponente")
+            )
+        }
+    }
+
+    @Test("Keine Optionskombination verletzt das Schema")
+    func noCombinationViolatesSchema() throws {
+        // Dieselbe Erschöpfung wie beim Prüfungstest — diesmal aber gegen die
+        // Komponentenzuordnung, die der Prüfung fehlte.
+        var checked = 0
+        for bits in 0..<16 {
+            for account in [nil, AnswerFileTemplate.LocalAccount(name: "N", password: "p")] {
+                for locale in [nil, "de-DE", "en-US"] {
+                    let template = AnswerFileTemplate(
+                        architecture: .x64,
+                        bypassHardwareChecks: bits & 1 != 0,
+                        bypassMicrosoftAccount: bits & 2 != 0,
+                        skipSetupPages: bits & 4 != 0,
+                        declineTelemetry: bits & 8 != 0,
+                        localAccount: account,
+                        locale: locale
+                    )
+                    let violations = template.schemaViolations()
+                    #expect(
+                        violations.isEmpty,
+                        Comment(rawValue: "bits=\(bits): \(violations.joined(separator: ", "))")
+                    )
+                    checked += 1
+                }
+            }
+        }
+        #expect(checked == 96)
+    }
+
+    @Test("Die Prüfung erkennt eine falsch platzierte Spracheinstellung")
+    func checkCatchesMisplacement() {
+        // Ohne diese Gegenprobe wäre nicht gezeigt, dass die Prüfung etwas
+        // merkt — nur, dass sie schweigt.
+        let owners = AnswerFileTemplate.elementOwners
+        #expect(owners["UILanguage"] == "Microsoft-Windows-International-Core")
+        #expect(owners["OOBE"] == "Microsoft-Windows-Shell-Setup")
+        #expect(owners["UILanguage"] != owners["OOBE"], "beide Komponenten wären identisch")
+    }
+
+    @Test("Jede erzeugte Datei bleibt wohlgeformtes XML")
+    func stillWellFormed() throws {
+        let answer = try AnswerFileTemplate(
+            bypassHardwareChecks: true, bypassMicrosoftAccount: true,
+            skipSetupPages: true, declineTelemetry: true,
+            localAccount: .init(name: "Nutzer"), locale: "de-DE"
+        ).build()
+        let document = try XMLDocument(data: answer.contents, options: [])
+        // Zwei Komponenten im oobeSystem-Durchlauf, nicht eine.
+        let components = try document.nodes(
+            forXPath: "//*[local-name()='settings'][@pass='oobeSystem']/*[local-name()='component']"
+        )
+        #expect(components.count == 2, "erwartet International-Core und Shell-Setup")
+    }
+}
